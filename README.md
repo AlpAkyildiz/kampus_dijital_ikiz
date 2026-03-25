@@ -19,8 +19,8 @@ Bu proje, IoT tabanlı bir dijital ikiz sistemi kullanarak kampüs ortamındaki 
 Sensör → ESP32 → MQTT → Flask → Veritabanı → Web Arayüzü
 
 ## 👥 Proje Ekibi
-- Alperen Akyıldız → Backend & Arayüz
-- Esma Mol → IoT & Donanım
+- Esma Mol → Backend & Arayüz
+- Alperen Akyıldız  → IoT & Donanım
 
 ## ⚙️ Kurulum
 
