@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Oda Detay</title>
+
+<style>
+body {
+    background:#0f172a;
+    color:white;
+    font-family:Arial;
+    padding:20px;
+}
+
+h1 {
+    text-align:center;
+}
+
+.container {
+    max-width:800px;
+    margin:auto;
+}
+
+.total {
+    background:#1e293b;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+    margin-bottom:20px;
+}
+
+.devices {
+    display:flex;
+    flex-wrap:wrap;
+    gap:15px;
+}
+
+.device {
+    background:#1e293b;
+    padding:15px;
+    border-radius:10px;
+    width:180px;
+    text-align:center;
+}
+
+button {
+    margin:5px;
+    padding:5px 10px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+.on { background:#22c55e; }
+.off { background:#ef4444; }
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1 id="roomName"></h1>
+
+<div class="total">
+    <h3>Toplam Enerji</h3>
+    <p id="totalEnergy">0 kWh</p>
+</div>
+
+<div class="devices" id="deviceList"></div>
+
+</div>
+
+<script>
+
+async function loadRoom() {
+
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get("room");
+
+    document.getElementById("roomName").innerText = room;
+
+    let res = await fetch(`/api/room/${room}/devices`);
+    let data = await res.json();
+
+    document.getElementById("totalEnergy").innerText = data.total_energy + " kWh";
+
+    let container = document.getElementById("deviceList");
+    container.innerHTML = "";
+
+    data.devices.forEach(d => {
+
+        let div = document.createElement("div");
+        div.className = "device";
+
+        div.innerHTML = `
+            <h4>${d.device}</h4>
+            <p>Durum: ${d.status}</p>
+            <p>${d.energy} kWh</p>
+
+            <button class="on" onclick="toggle('${room}','${d.device}','on')">Aç</button>
+            <button class="off" onclick="toggle('${room}','${d.device}','off')">Kapat</button>
+        `;
+
+        container.appendChild(div);
+    });
+}
+
+async function toggle(room, device, status) {
+
+    await fetch('/api/room/control', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room, device, status })
+    });
+
+    loadRoom();
+}
+
+loadRoom();
+
+</script>
+
+</body>
+</html>

@@ -4,371 +4,246 @@ import sqlite3
 app = Flask(__name__)
 DB_NAME = "db.db"
 
-
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
 
-
+# 🔥 DB KURULUM
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # sensör verisi
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sensor_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room TEXT NOT NULL,
             type TEXT NOT NULL,
             value REAL NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
+    # oda cihazları
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS device_status (
+        CREATE TABLE IF NOT EXISTS room_devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            device_name TEXT UNIQUE NOT NULL,
-            status TEXT NOT NULL DEFAULT 'off',
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            room TEXT,
+            device_name TEXT,
+            status TEXT DEFAULT 'off',
+            power REAL DEFAULT 0,
+            UNIQUE(room, device_name)
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS control_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            device_name TEXT NOT NULL,
-            status TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    # örnek cihazlar (ilk çalıştırmada eklenir)
+    devices = [
+        ("lab_403", "light", 0.5),
+        ("lab_403", "projector", 1.2),
+        ("lab_403", "computers", 3.5),
+        ("lab_403", "sockets", 2.0),
 
-    for device in ["lighting", "fan", "hvac"]:
+        ("sinif_414", "light", 0.4),
+        ("sinif_414", "projector", 1.0),
+        ("sinif_414", "sockets", 1.5),
+
+        ("koridor", "light", 0.3)
+    ]
+
+    for room, device, power in devices:
         cursor.execute("""
-            INSERT OR IGNORE INTO device_status (device_name, status)
-            VALUES (?, 'off')
-        """, (device,))
+            INSERT OR IGNORE INTO room_devices (room, device_name, power)
+            VALUES (?, ?, ?)
+        """, (room, device, power))
 
     conn.commit()
     conn.close()
 
-
 init_db()
 
-
+# 🔷 SAYFALAR
 @app.route("/")
 def home():
-    return "Kampus Enerji Dijital Ikizi sistemi calisiyor."
-
+    return "Sistem çalışıyor"
 
 @app.route("/dashboard")
 def dashboard():
     return render_template("index.html")
 
 
+
+# 🔷 VERİ EKLE
 @app.route("/api/add", methods=["POST"])
 def add_data():
     data = request.get_json()
 
-    if not data:
-        return jsonify({"error": "JSON veri gelmedi"}), 400
-
+    room = data.get("room")
     sensor_type = data.get("type")
     value = data.get("value")
 
-    valid_types = ["temperature", "humidity", "light"]
-    if sensor_type not in valid_types:
-        return jsonify({"error": "Gecersiz sensor tipi"}), 400
+    if not room or not sensor_type or value is None:
+        return jsonify({"error": "Eksik veri"}), 400
 
-    try:
-        value = float(value)
-    except (ValueError, TypeError):
-        return jsonify({"error": "Value sayisal olmali"}), 400
+    valid_types = ["temperature", "light", "energy"]
+
+    if sensor_type not in valid_types:
+        return jsonify({"error": "Geçersiz type"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO sensor_data (type, value)
-        VALUES (?, ?)
-    """, (sensor_type, value))
+        INSERT INTO sensor_data (room, type, value)
+        VALUES (?, ?, ?)
+    """, (room, sensor_type, value))
 
-    new_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
-    return jsonify({
-        "status": "ok",
-        "id": new_id,
-        "type": sensor_type,
-        "value": value
-    }), 201
+    return jsonify({"status": "ok"})
 
-
-@app.route("/api/data", methods=["GET"])
-def get_latest_data():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    result = {}
-
-    for sensor_type in ["temperature", "humidity", "light"]:
-        cursor.execute("""
-            SELECT value, timestamp
-            FROM sensor_data
-            WHERE type = ?
-            ORDER BY id DESC
-            LIMIT 1
-        """, (sensor_type,))
-        row = cursor.fetchone()
-
-        if row:
-            result[sensor_type] = row["value"]
-            result[f"{sensor_type}_timestamp"] = row["timestamp"]
-        else:
-            result[sensor_type] = 0
-            result[f"{sensor_type}_timestamp"] = None
-
-    conn.close()
-    return jsonify(result)
-
-
-@app.route("/api/history/<sensor_type>", methods=["GET"])
-def get_sensor_history(sensor_type):
-    valid_types = ["temperature", "humidity", "light"]
-    if sensor_type not in valid_types:
-        return jsonify({"error": "Gecersiz sensor tipi"}), 400
-
-    limit = request.args.get("limit", default=12, type=int)
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT id, type, value, timestamp
-        FROM sensor_data
-        WHERE type = ?
-        ORDER BY id DESC
-        LIMIT ?
-    """, (sensor_type, limit))
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    data = []
-    for row in reversed(rows):
-        data.append({
-            "id": row["id"],
-            "type": row["type"],
-            "value": row["value"],
-            "timestamp": row["timestamp"]
-        })
-
-    return jsonify(data)
-
-
-@app.route("/api/all", methods=["GET"])
+# 🔷 TÜM VERİLER
+@app.route("/api/data")
 def get_all_data():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT id, type, value, timestamp
-        FROM sensor_data
-        ORDER BY id DESC
-    """)
+    cursor.execute("SELECT * FROM sensor_data ORDER BY id DESC LIMIT 100")
     rows = cursor.fetchall()
     conn.close()
 
-    data = []
-    for row in rows:
-        data.append({
-            "id": row["id"],
-            "type": row["type"],
-            "value": row["value"],
-            "timestamp": row["timestamp"]
-        })
+    return jsonify([dict(row) for row in rows])
 
-    return jsonify(data)
-
-
-@app.route("/api/summary", methods=["GET"])
-def get_summary():
+# 🔷 ODA VERİSİ (grafik için)
+@app.route("/api/room/<room>/data")
+def get_room_data(room):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    latest = {}
-    for sensor_type in ["temperature", "humidity", "light"]:
-        cursor.execute("""
-            SELECT value
-            FROM sensor_data
-            WHERE type = ?
-            ORDER BY id DESC
-            LIMIT 1
-        """, (sensor_type,))
-        row = cursor.fetchone()
-        latest[sensor_type] = row["value"] if row else 0
+    cursor.execute("""
+        SELECT type, value, timestamp
+        FROM sensor_data
+        WHERE room = ?
+        ORDER BY id DESC
+    """, (room,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
+
+# 🔷 ODA CİHAZLARI
+@app.route("/api/room/<room>/devices")
+def get_room_devices(room):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT COUNT(*) as count
-        FROM device_status
-        WHERE status = 'on'
-    """)
-    active_devices = cursor.fetchone()["count"]
+        SELECT device_name, status, power
+        FROM room_devices
+        WHERE room = ?
+    """, (room,))
 
-    temperature = latest["temperature"]
-    humidity = latest["humidity"]
-    light = latest["light"]
+    devices = cursor.fetchall()
 
-    total_energy = round((light * 0.18) + (temperature * 1.4) + (humidity * 0.65), 2)
-    current_load = round((temperature * 0.9) + (light * 0.05), 2)
-    estimated_saving = round(max(0, 8000 - total_energy * 4.2), 2)
+    result = []
+    total = 0
+
+    for d in devices:
+        energy = d["power"] if d["status"] == "on" else 0
+        total += energy
+
+        result.append({
+            "device": d["device_name"],
+            "status": d["status"],
+            "power": d["power"],
+            "energy": energy
+        })
 
     conn.close()
 
     return jsonify({
-        "total_energy": total_energy,
-        "active_devices": active_devices,
-        "avg_temperature": round(temperature, 2),
-        "current_load": current_load,
-        "estimated_saving": estimated_saving
+        "room": room,
+        "devices": result,
+        "total_energy": total
     })
 
+# 🔷 CİHAZ KONTROL
+@app.route("/api/room/control", methods=["POST"])
+def control_room():
 
-@app.route("/api/devices", methods=["GET"])
-def get_devices():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT device_name, status, updated_at
-        FROM device_status
-        ORDER BY id ASC
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-
-    devices = []
-    for row in rows:
-        devices.append({
-            "device_name": row["device_name"],
-            "status": row["status"],
-            "updated_at": row["updated_at"]
-        })
-
-    return jsonify(devices)
-
-
-@app.route("/api/control", methods=["POST"])
-def control_device():
     data = request.get_json()
 
-    if not data:
-        return jsonify({"error": "JSON veri gelmedi"}), 400
-
-    device_name = data.get("device")
+    room = data.get("room")
+    device = data.get("device")
     status = data.get("status")
 
-    valid_devices = ["lighting", "fan", "hvac"]
-    valid_status = ["on", "off"]
-
-    if device_name not in valid_devices:
-        return jsonify({"error": "Gecersiz cihaz"}), 400
-
-    if status not in valid_status:
-        return jsonify({"error": "Gecersiz durum"}), 400
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        UPDATE device_status
-        SET status = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE device_name = ?
-    """, (status, device_name))
-
-    cursor.execute("""
-        INSERT INTO control_logs (device_name, status)
-        VALUES (?, ?)
-    """, (device_name, status))
+        UPDATE room_devices
+        SET status = ?
+        WHERE room = ? AND device_name = ?
+    """, (status, room, device))
 
     conn.commit()
     conn.close()
 
-    return jsonify({
-        "status": "ok",
-        "device": device_name,
-        "new_status": status
-    })
+    return jsonify({"status": "ok"})
 
-
-@app.route("/api/simulate", methods=["POST"])
-def simulate_scenario():
-    data = request.get_json()
-    scenario = data.get("scenario")
-
-    scenarios = {
-        "normal": {
-            "temperature": 24.5,
-            "humidity": 48,
-            "light": 420
-        },
-        "busy": {
-            "temperature": 31.2,
-            "humidity": 58,
-            "light": 650
-        },
-        "night": {
-            "temperature": 21.3,
-            "humidity": 52,
-            "light": 140
-        }
-    }
-
-    if scenario not in scenarios:
-        return jsonify({"error": "Gecersiz senaryo"}), 400
-
-    values = scenarios[scenario]
-
+# 🔷 GENEL ÖZET
+@app.route("/api/summary")
+def summary():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    for sensor_type, value in values.items():
-        cursor.execute("""
-            INSERT INTO sensor_data (type, value)
-            VALUES (?, ?)
-        """, (sensor_type, value))
+    cursor.execute("""
+        SELECT room, SUM(value) as total
+        FROM sensor_data
+        WHERE type='energy'
+        GROUP BY room
+    """)
 
-    conn.commit()
+    rows = cursor.fetchall()
+
+    total_energy = 0
+    room_usage = {}
+
+    for row in rows:
+        room_usage[row["room"]] = row["total"]
+        total_energy += row["total"]
+
     conn.close()
 
+    most_used_room = max(room_usage, key=room_usage.get) if room_usage else None
+
     return jsonify({
-        "status": "ok",
-        "scenario": scenario,
-        "values": values
+        "total_energy": round(total_energy, 2),
+        "most_used_room": most_used_room,
+        "room_usage": room_usage
     })
 
+@app.route("/room")
+def room_page():
+    room = request.args.get("room")
+    return render_template("room.html", room=room)
 
+
+# 🔷 TEMİZLE
 @app.route("/api/clear", methods=["DELETE"])
-def clear_data():
+def clear():
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM sensor_data")
-    cursor.execute("DELETE FROM control_logs")
-
-    cursor.execute("""
-        UPDATE device_status
-        SET status = 'off', updated_at = CURRENT_TIMESTAMP
-    """)
 
     conn.commit()
     conn.close()
 
-    return jsonify({
-        "status": "ok",
-        "message": "Tum test verileri temizlendi"
-    })
-
+    return jsonify({"status": "temizlendi"})
 
 if __name__ == "__main__":
     app.run(debug=True)
