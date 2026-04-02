@@ -1,811 +1,244 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kampüs Enerji Dijital İkizi</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --bg: #0b1220;
-            --panel: #111a2e;
-            --panel-2: #17233d;
-            --line: rgba(255,255,255,0.08);
-            --text: #f3f7ff;
-            --muted: #9fb0d0;
-            --cyan: #34d6ff;
-            --green: #42f59b;
-            --orange: #ff9b45;
-            --red: #ff5c73;
-            --blue: #4f8cff;
-            --shadow: 0 10px 30px rgba(0,0,0,0.35);
-        }
+<meta charset="UTF-8">
+<title>Dijital İkiz Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: "Segoe UI", Arial, sans-serif;
-        }
+<style>
+body {
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    margin: 0;
+    padding: 20px;
+}
 
-        body {
-            background:
-                radial-gradient(circle at top left, rgba(52,214,255,0.08), transparent 25%),
-                radial-gradient(circle at top right, rgba(66,245,155,0.08), transparent 25%),
-                linear-gradient(135deg, #08101d 0%, #0e1729 100%);
-            color: var(--text);
-            min-height: 100vh;
-        }
+h1 {
+    text-align: center;
+}
 
-        .layout {
-            display: grid;
-            grid-template-columns: 260px 1fr;
-            min-height: 100vh;
-        }
+.subtitle {
+    text-align: center;
+    color: #94a3b8;
+    margin-bottom: 30px;
+}
 
-        .sidebar {
-            background: rgba(10, 17, 30, 0.95);
-            border-right: 1px solid var(--line);
-            padding: 24px 18px;
-        }
+.cards {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+}
 
-        .brand {
-            font-size: 22px;
-            font-weight: 800;
-            line-height: 1.3;
-            margin-bottom: 28px;
-            color: white;
-        }
+.card {
+    flex: 1;
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+}
 
-        .menu {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-bottom: 28px;
-        }
+.main {
+    display: flex;
+    gap: 30px;
+}
 
-        .menu-item {
-            background: transparent;
-            color: var(--text);
-            border: 1px solid transparent;
-            border-radius: 14px;
-            padding: 14px 16px;
-            text-align: left;
-            cursor: pointer;
-            font-size: 15px;
-            transition: 0.2s ease;
-        }
+.chart-container {
+    width: 280px;
+}
 
-        .menu-item:hover,
-        .menu-item.active {
-            background: rgba(52, 214, 255, 0.08);
-            border-color: rgba(52,214,255,0.25);
-            box-shadow: 0 0 0 1px rgba(52,214,255,0.08) inset;
-        }
+.rooms {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
 
-        .side-card {
-            background: linear-gradient(180deg, rgba(23,35,61,0.95), rgba(12,20,35,0.95));
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 16px;
-            box-shadow: var(--shadow);
-        }
+.room {
+    background: #1e293b;
+    padding: 15px;
+    border-radius: 10px;
+    width: 150px;
+    cursor: pointer;
+    transition: 0.2s;
+}
 
-        .side-card h3 {
-            font-size: 16px;
-            margin-bottom: 12px;
-        }
+.room:hover {
+    background: #334155;
+}
 
-        .sensor-chip {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 10px 12px;
-            margin-bottom: 10px;
-            color: var(--muted);
-        }
-
-        .main {
-            padding: 22px;
-        }
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 18px;
-        }
-
-        .title {
-            font-size: 34px;
-            font-weight: 800;
-            letter-spacing: 0.4px;
-        }
-
-        .subtitle {
-            color: var(--muted);
-            margin-top: 4px;
-            font-size: 14px;
-        }
-
-        .status-badge {
-            background: rgba(66,245,155,0.12);
-            color: var(--green);
-            border: 1px solid rgba(66,245,155,0.24);
-            padding: 10px 14px;
-            border-radius: 999px;
-            font-size: 13px;
-            font-weight: 700;
-        }
-
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 16px;
-            margin-bottom: 18px;
-        }
-
-        .card {
-            background: linear-gradient(180deg, rgba(18,28,48,0.95), rgba(13,20,35,0.96));
-            border: 1px solid var(--line);
-            border-radius: 20px;
-            box-shadow: var(--shadow);
-        }
-
-        .kpi-card {
-            padding: 18px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .kpi-card::after {
-            content: "";
-            position: absolute;
-            inset: auto -20px -20px auto;
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(52,214,255,0.18), transparent 60%);
-        }
-
-        .kpi-label {
-            color: var(--muted);
-            font-size: 13px;
-            margin-bottom: 12px;
-        }
-
-        .kpi-value {
-            font-size: 34px;
-            font-weight: 800;
-            color: var(--green);
-        }
-
-        .kpi-unit {
-            font-size: 16px;
-            color: var(--muted);
-            margin-left: 6px;
-        }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 18px;
-            margin-bottom: 18px;
-        }
-
-        .panel {
-            padding: 18px;
-        }
-
-        .panel-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 14px;
-        }
-
-        .chart-wrap {
-            height: 320px;
-        }
-
-        .mini-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 14px;
-        }
-
-        .mini-card {
-            padding: 16px;
-            border-radius: 18px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--line);
-        }
-
-        .mini-card h4 {
-            font-size: 15px;
-            margin-bottom: 10px;
-        }
-
-        .mini-values {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-
-        .mini-value-box {
-            background: rgba(255,255,255,0.04);
-            border-radius: 14px;
-            padding: 12px;
-            text-align: center;
-        }
-
-        .mini-value-box .label {
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 6px;
-        }
-
-        .mini-value-box .value {
-            font-size: 22px;
-            font-weight: 800;
-        }
-
-        .bottom-grid {
-            display: grid;
-            grid-template-columns: 1.4fr 1fr 1fr;
-            gap: 18px;
-        }
-
-        .flow {
-            padding: 18px;
-        }
-
-        .flow-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 16px;
-            align-items: center;
-        }
-
-        .flow-box {
-            min-height: 100px;
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            background: rgba(255,255,255,0.03);
-            padding: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            font-weight: 700;
-            color: #dce8ff;
-        }
-
-        .control-panel,
-        .simulate-panel,
-        .manual-panel {
-            padding: 18px;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 6px;
-            color: var(--muted);
-            font-size: 13px;
-        }
-
-        select,
-        input {
-            width: 100%;
-            background: rgba(255,255,255,0.04);
-            color: white;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 12px;
-            outline: none;
-        }
-
-        .btn {
-            width: 100%;
-            border: none;
-            border-radius: 12px;
-            padding: 12px 14px;
-            cursor: pointer;
-            font-weight: 700;
-            margin-top: 6px;
-            transition: 0.2s ease;
-        }
-
-        .btn-primary {
-            background: linear-gradient(90deg, #00c6ff, #0072ff);
-            color: white;
-        }
-
-        .btn-success {
-            background: linear-gradient(90deg, #18c47f, #0ea867);
-            color: white;
-        }
-
-        .btn-orange {
-            background: linear-gradient(90deg, #ff9b45, #ff6b35);
-            color: white;
-        }
-
-        .btn-dark {
-            background: rgba(255,255,255,0.08);
-            color: white;
-            border: 1px solid var(--line);
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-            filter: brightness(1.05);
-        }
-
-        .device-buttons {
-            display: grid;
-            gap: 10px;
-        }
-
-        .device-row {
-            display: grid;
-            grid-template-columns: 1fr auto auto;
-            gap: 8px;
-            align-items: center;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 10px 12px;
-        }
-
-        .device-name {
-            font-weight: 700;
-        }
-
-        .device-status {
-            font-size: 12px;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.08);
-            color: var(--muted);
-        }
-
-        .log-box {
-            margin-top: 12px;
-            font-size: 13px;
-            color: var(--muted);
-            min-height: 20px;
-        }
-
-        @media (max-width: 1400px) {
-            .kpi-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-
-            .bottom-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 1100px) {
-            .layout {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                display: none;
-            }
-
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 800px) {
-            .kpi-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .flow-row {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .title {
-                font-size: 24px;
-            }
-        }
-
-        @media (max-width: 560px) {
-            .kpi-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .flow-row {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+.line-chart {
+    margin-top: 30px;
+    background: #1e293b;
+    padding: 15px;
+    border-radius: 10px;
+    width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+</style>
 </head>
+
 <body>
-    <div class="layout">
-        <aside class="sidebar">
-            <div class="brand">KAMPÜS ENERJİ<br>DİJİTAL İKİZİ</div>
 
-            <div class="menu">
-                <button class="menu-item active">Anlık İzleme</button>
-                <button class="menu-item">Bina Analitiği</button>
-                <button class="menu-item">Cihaz Yönetimi</button>
-                <button class="menu-item">Simülasyon</button>
-                <button class="menu-item">Raporlar</button>
-            </div>
+<h1>🏫 Dijital İkiz Sistemine Hoş Geldiniz</h1>
+<p class="subtitle">Enerji İzleme ve Simülasyon Paneli</p>
 
-            <div class="side-card">
-                <h3>Sensör Verileri</h3>
-                <div class="sensor-chip"><span>Sıcaklık</span><strong id="sidebar-temp">-- °C</strong></div>
-                <div class="sensor-chip"><span>Nem</span><strong id="sidebar-humidity">-- %</strong></div>
-                <div class="sensor-chip"><span>Işık</span><strong id="sidebar-light">-- lx</strong></div>
-            </div>
-        </aside>
-
-        <main class="main">
-            <div class="topbar">
-                <div>
-                    <div class="title">KAMPÜS ENERJİ DİJİTAL İKİZİ KONTROL PANELİ</div>
-                    <div class="subtitle">Flask + SQLite + API + Dashboard Demo Sürümü</div>
-                </div>
-                <div class="status-badge">● Sistem Aktif</div>
-            </div>
-
-            <section class="kpi-grid">
-                <div class="card kpi-card">
-                    <div class="kpi-label">Toplam Enerji Tüketimi</div>
-                    <div class="kpi-value" id="kpi-energy">0<span class="kpi-unit">kWh</span></div>
-                </div>
-                <div class="card kpi-card">
-                    <div class="kpi-label">Aktif Cihaz Sayısı</div>
-                    <div class="kpi-value" id="kpi-devices">0<span class="kpi-unit">adet</span></div>
-                </div>
-                <div class="card kpi-card">
-                    <div class="kpi-label">Ortalama Kampüs Sıcaklığı</div>
-                    <div class="kpi-value" id="kpi-temp">0<span class="kpi-unit">°C</span></div>
-                </div>
-                <div class="card kpi-card">
-                    <div class="kpi-label">Anlık Güç Yükü</div>
-                    <div class="kpi-value" id="kpi-load">0<span class="kpi-unit">kW</span></div>
-                </div>
-                <div class="card kpi-card">
-                    <div class="kpi-label">Tahmini Tasarruf</div>
-                    <div class="kpi-value" id="kpi-saving">0<span class="kpi-unit">TL</span></div>
-                </div>
-            </section>
-
-            <section class="content-grid">
-                <div class="card panel">
-                    <div class="panel-title">Günlük Enerji / Sıcaklık Eğilimi</div>
-                    <div class="chart-wrap">
-                        <canvas id="mainChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="mini-grid">
-                    <div class="card mini-card">
-                        <h4>Mühendislik Fakültesi</h4>
-                        <div class="mini-values">
-                            <div class="mini-value-box">
-                                <div class="label">Temp</div>
-                                <div class="value" id="temperature">--</div>
-                            </div>
-                            <div class="mini-value-box">
-                                <div class="label">Hid</div>
-                                <div class="value" id="humidity">--</div>
-                            </div>
-                            <div class="mini-value-box">
-                                <div class="label">Light</div>
-                                <div class="value" id="light">--</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card mini-card">
-                        <h4>Son Güncelleme</h4>
-                        <div class="mini-values">
-                            <div class="mini-value-box">
-                                <div class="label">Sıcaklık</div>
-                                <div class="value" id="temperature-time" style="font-size:14px;">--</div>
-                            </div>
-                            <div class="mini-value-box">
-                                <div class="label">Nem</div>
-                                <div class="value" id="humidity-time" style="font-size:14px;">--</div>
-                            </div>
-                            <div class="mini-value-box">
-                                <div class="label">Işık</div>
-                                <div class="value" id="light-time" style="font-size:14px;">--</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card manual-panel">
-                        <div class="panel-title">Manuel Veri Girişi</div>
-
-                        <div class="form-group">
-                            <label>Sensör Türü</label>
-                            <select id="sensorType">
-                                <option value="temperature">Temperature</option>
-                                <option value="humidity">Humidity</option>
-                                <option value="light">Light</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Değer</label>
-                            <input type="number" id="sensorValue" step="0.1" placeholder="Örn: 27.5">
-                        </div>
-
-                        <button class="btn btn-primary" onclick="submitManualData()">Veriyi Gönder</button>
-                        <div class="log-box" id="manualLog"></div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="bottom-grid">
-                <div class="card flow">
-                    <div class="panel-title">Sistem Mimarisi / Veri Akışı</div>
-                    <div class="flow-row">
-                        <div class="flow-box">Sensörler / Manuel Veri</div>
-                        <div class="flow-box">Flask API</div>
-                        <div class="flow-box">SQLite Veritabanı</div>
-                        <div class="flow-box">Web Dashboard</div>
-                    </div>
-                </div>
-
-                <div class="card control-panel">
-                    <div class="panel-title">Kullanıcı Kontrolü</div>
-                    <div class="device-buttons" id="deviceContainer"></div>
-                    <div class="log-box" id="controlLog"></div>
-                </div>
-
-                <div class="card simulate-panel">
-                    <div class="panel-title">Senaryo Simülasyonu</div>
-                    <button class="btn btn-success" onclick="runScenario('normal')">Normal Mod</button>
-                    <button class="btn btn-orange" onclick="runScenario('busy')">Yoğun Kullanım</button>
-                    <button class="btn btn-dark" onclick="runScenario('night')">Gece Modu</button>
-                    <button class="btn btn-dark" onclick="clearAllData()" style="margin-top:12px;">Tüm Test Verilerini Temizle</button>
-                    <div class="log-box" id="scenarioLog"></div>
-                </div>
-            </section>
-        </main>
+<!-- ÜST -->
+<div class="cards">
+    <div class="card">
+        <h3>Toplam Enerji</h3>
+        <p id="totalEnergy">0</p>
     </div>
 
-    <script>
-        let mainChart = null;
+    <div class="card">
+        <h3>En Çok Tüketen Oda</h3>
+        <p id="topRoom">-</p>
+    </div>
 
-        function shortTime(value) {
-            if (!value) return "--";
-            return value.split(" ")[1] || value;
-        }
+    <div class="card">
+        <h3>Aktif Oda Sayısı</h3>
+        <p id="activeRooms">0</p>
+    </div>
+</div>
 
-        async function loadLatestData() {
-            const response = await fetch("/api/data");
-            const data = await response.json();
+<!-- ORTA -->
+<div class="main">
+    <div class="chart-container">
+        <canvas id="pieChart"></canvas>
+    </div>
 
-            document.getElementById("temperature").innerText = data.temperature;
-            document.getElementById("humidity").innerText = data.humidity;
-            document.getElementById("light").innerText = data.light;
+    <div class="rooms" id="roomCards"></div>
+</div>
 
-            document.getElementById("sidebar-temp").innerText = `${data.temperature} °C`;
-            document.getElementById("sidebar-humidity").innerText = `${data.humidity} %`;
-            document.getElementById("sidebar-light").innerText = `${data.light} lx`;
+<!-- ALT -->
+<div class="line-chart">
+    <h3>Enerji Geçmişi</h3>
+    <canvas id="lineChart"></canvas>
+</div>
 
-            document.getElementById("temperature-time").innerText = shortTime(data.temperature_timestamp);
-            document.getElementById("humidity-time").innerText = shortTime(data.humidity_timestamp);
-            document.getElementById("light-time").innerText = shortTime(data.light_timestamp);
+<script>
 
-            updateTemperatureColor(data.temperature);
-        }
+let pieChart;
+let lineChart;
 
-        async function loadSummary() {
-            const response = await fetch("/api/summary");
-            const data = await response.json();
+async function loadData() {
 
-            document.getElementById("kpi-energy").innerHTML = `${data.total_energy}<span class="kpi-unit">kWh</span>`;
-            document.getElementById("kpi-devices").innerHTML = `${data.active_devices}<span class="kpi-unit">adet</span>`;
-            document.getElementById("kpi-temp").innerHTML = `${data.avg_temperature}<span class="kpi-unit">°C</span>`;
-            document.getElementById("kpi-load").innerHTML = `${data.current_load}<span class="kpi-unit">kW</span>`;
-            document.getElementById("kpi-saving").innerHTML = `${data.estimated_saving}<span class="kpi-unit">TL</span>`;
-        }
+    let summary = await fetch('/api/summary').then(r => r.json());
 
-        async function loadChart() {
-            const response = await fetch("/api/history/temperature?limit=12");
-            const history = await response.json();
+    // ÜST KARTLAR
+    document.getElementById("totalEnergy").innerText = summary.total_energy + " kWh";
+    document.getElementById("topRoom").innerText = summary.most_used_room || "-";
 
-            const labels = history.map(item => shortTime(item.timestamp));
-            const values = history.map(item => item.value);
+    let activeCount = Object.keys(summary.room_usage).length;
+    document.getElementById("activeRooms").innerText = activeCount;
 
-            renderChart(labels, values);
-        }
+    // 🔥 ARTIK BURASI summary'den geliyor
+    drawPie(summary.room_usage);
+    drawRooms(summary.room_usage);
 
-        function renderChart(labels, values) {
-            const ctx = document.getElementById("mainChart").getContext("2d");
+    // LINE
+    let history = await fetch('/api/data').then(r => r.json());
+    drawLine(history);
+}
 
-            if (mainChart) {
-                mainChart.destroy();
-            }
+function drawPie(data) {
 
-            mainChart = new Chart(ctx, {
-                type: "line",
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: "Sıcaklık Eğilimi",
-                        data: values,
-                        borderColor: "#34d6ff",
-                        backgroundColor: "rgba(52, 214, 255, 0.16)",
-                        fill: true,
-                        tension: 0.35,
-                        borderWidth: 3,
-                        pointRadius: 4,
-                        pointBackgroundColor: "#42f59b"
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: "#dbe7ff"
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            ticks: {
-                                color: "#c6d3ee"
-                            },
-                            grid: {
-                                color: "rgba(255,255,255,0.06)"
-                            }
-                        },
-                        y: {
-                            ticks: {
-                                color: "#c6d3ee"
-                            },
-                            grid: {
-                                color: "rgba(255,255,255,0.06)"
-                            }
-                        }
-                    }
+    if (pieChart) pieChart.destroy();
+
+    pieChart = new Chart(document.getElementById("pieChart"), {
+        type: 'pie',
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                data: Object.values(data),
+                backgroundColor: [
+                    '#3b82f6','#22c55e','#f59e0b','#ef4444','#a855f7'
+                ]
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    labels: { color: "white" }
                 }
-            });
-        }
-
-        function updateTemperatureColor(temp) {
-            const el = document.getElementById("temperature");
-
-            if (temp >= 30) {
-                el.style.color = "#ff5c73";
-            } else if (temp >= 25) {
-                el.style.color = "#ff9b45";
-            } else {
-                el.style.color = "#42f59b";
             }
         }
+    });
+}
 
-        async function loadDevices() {
-            const response = await fetch("/api/devices");
-            const devices = await response.json();
+function drawRooms(data) {
+    let container = document.getElementById("roomCards");
+    container.innerHTML = "";
 
-            const container = document.getElementById("deviceContainer");
-            container.innerHTML = "";
+    for (let room in data) {
 
-            devices.forEach(device => {
-                const row = document.createElement("div");
-                row.className = "device-row";
+        let div = document.createElement("div");
+        div.className = "room";
 
-                row.innerHTML = `
-                    <div class="device-name">${device.device_name.toUpperCase()}</div>
-                    <div class="device-status">${device.status.toUpperCase()}</div>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn btn-success" style="width:auto; margin:0; padding:8px 10px;" onclick="setDevice('${device.device_name}','on')">Aç</button>
-                        <button class="btn btn-dark" style="width:auto; margin:0; padding:8px 10px;" onclick="setDevice('${device.device_name}','off')">Kapat</button>
-                    </div>
-                `;
+        div.innerHTML = `
+            <h4>${room}</h4>
+            <p>${data[room]} kWh</p>
+        `;
 
-                container.appendChild(row);
-            });
+        // 🔥 TIKLANABİLİR
+        div.onclick = () => openRoom(room);
+
+        container.appendChild(div);
+    }
+}
+
+function drawLine(history) {
+
+    if (lineChart) lineChart.destroy();
+
+    let energyData = history.filter(x => x.type === "energy");
+
+    let rooms = [...new Set(energyData.map(x => x.room))];
+    let labels = [...new Set(energyData.map(x => x.timestamp))];
+
+    labels.sort((a, b) => new Date(a) - new Date(b));
+
+    let datasets = [];
+
+    rooms.forEach((room, index) => {
+
+        let data = [];
+
+        labels.forEach(time => {
+            let record = energyData.find(x => x.room === room && x.timestamp === time);
+            data.push(record ? record.value : null);
+        });
+
+        let colors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7'];
+
+        datasets.push({
+            label: room,
+            data: data,
+            borderColor: colors[index % colors.length],
+            fill: false,
+            tension: 0.3,
+            spanGaps: true
+        });
+    });
+
+    lineChart = new Chart(document.getElementById("lineChart"), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
         }
+    });
+}
 
-        async function setDevice(device, status) {
-            const response = await fetch("/api/control", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    device: device,
-                    status: status
-                })
-            });
+function openRoom(room) {
+    window.location.href = `/room?room=${room}`;
+}
 
-            const result = await response.json();
-            document.getElementById("controlLog").innerText = `${result.device} -> ${result.new_status}`;
-            await refreshDashboard();
-        }
+loadData();
+setInterval(loadData, 15000);
 
-        async function submitManualData() {
-            const type = document.getElementById("sensorType").value;
-            const value = document.getElementById("sensorValue").value;
+</script>
 
-            if (value === "") {
-                document.getElementById("manualLog").innerText = "Lütfen değer gir.";
-                return;
-            }
-
-            const response = await fetch("/api/add", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    type: type,
-                    value: value
-                })
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                document.getElementById("manualLog").innerText = `${result.type} verisi eklendi: ${result.value}`;
-                document.getElementById("sensorValue").value = "";
-                await refreshDashboard();
-            } else {
-                document.getElementById("manualLog").innerText = result.error || "Hata oluştu";
-            }
-        }
-
-        async function runScenario(scenario) {
-            const response = await fetch("/api/simulate", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    scenario: scenario
-                })
-            });
-
-            const result = await response.json();
-            document.getElementById("scenarioLog").innerText = `Senaryo çalıştı: ${result.scenario}`;
-            await refreshDashboard();
-        }
-
-        async function clearAllData() {
-            const response = await fetch("/api/clear", {
-                method: "DELETE"
-            });
-
-            const result = await response.json();
-            document.getElementById("scenarioLog").innerText = result.message;
-            await refreshDashboard();
-        }
-
-        async function refreshDashboard() {
-            await loadLatestData();
-            await loadSummary();
-            await loadChart();
-            await loadDevices();
-        }
-
-        refreshDashboard();
-        setInterval(refreshDashboard, 5000);
-    </script>
 </body>
 </html>
