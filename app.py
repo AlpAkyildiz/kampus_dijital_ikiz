@@ -1,5 +1,8 @@
 from flask import Flask, jsonify, request, render_template
 import sqlite3
+import random
+import threading
+import time
 
 app = Flask(__name__)
 DB_NAME = "db.db"
@@ -9,58 +12,93 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# 🔥 DB KURULUM
+# 🔥 DB
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # sensör verisi
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sensor_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            room TEXT NOT NULL,
-            type TEXT NOT NULL,
-            value REAL NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # oda cihazları
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS room_devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             room TEXT,
             device_name TEXT,
-            status TEXT DEFAULT 'off',
-            power REAL DEFAULT 0,
+            status TEXT DEFAULT 'on',
+            power REAL,
             UNIQUE(room, device_name)
         )
     """)
 
-    # örnek cihazlar (ilk çalıştırmada eklenir)
-    devices = [
-        ("lab_403", "light", 0.5),
-        ("lab_403", "projector", 1.2),
-        ("lab_403", "computers", 3.5),
-        ("lab_403", "sockets", 2.0),
-
-        ("sinif_414", "light", 0.4),
-        ("sinif_414", "projector", 1.0),
-        ("sinif_414", "sockets", 1.5),
-
-        ("koridor", "light", 0.3)
-    ]
-
-    for room, device, power in devices:
-        cursor.execute("""
-            INSERT OR IGNORE INTO room_devices (room, device_name, power)
-            VALUES (?, ?, ?)
-        """, (room, device, power))
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS device_energy_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room TEXT,
+            device TEXT,
+            value REAL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     conn.commit()
     conn.close()
 
 init_db()
+
+# 🔥 SİMÜLASYON
+def simulate_device(room, device, power):
+    while True:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT status FROM room_devices
+            WHERE room=? AND device_name=?
+        """, (room, device))
+
+        row = cursor.fetchone()
+        status = row["status"] if row else "off"
+
+        if status == "off":
+            value = 0
+        else:
+            if device == "light":
+                value = power
+            elif device == "projector":
+                value = power * random.uniform(0.9, 1.1)
+            elif device == "computers":
+                value = power * random.uniform(0.5, 1.5)
+            elif device == "sockets":
+                value = power * random.uniform(0.2, 2.0)
+            else:
+                value = power
+
+        cursor.execute("""
+            INSERT INTO device_energy_log (room, device, value)
+            VALUES (?, ?, ?)
+        """, (room, device, value))
+
+        conn.commit()
+        conn.close()
+
+        time.sleep(5)
+
+# 🔥 TÜM CİHAZLARI BAŞLAT
+def start_all_devices():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT room, device_name, power FROM room_devices")
+    devices = cursor.fetchall()
+    conn.close()
+
+    for d in devices:
+        t = threading.Thread(
+            target=simulate_device,
+            args=(d["room"], d["device_name"], d["power"]),
+            daemon=True
+        )
+        t.start()
+
+start_all_devices()
 
 # 🔷 SAYFALAR
 @app.route("/")
@@ -71,67 +109,116 @@ def home():
 def dashboard():
     return render_template("index.html")
 
+@app.route("/room")
+def room_page():
+    room = request.args.get("room")
+    return render_template("room.html", room=room)
 
+@app.route("/api/add-room", methods=["POST"])
+def add_room():
 
-# 🔷 VERİ EKLE
-@app.route("/api/add", methods=["POST"])
-def add_data():
     data = request.get_json()
-
     room = data.get("room")
-    sensor_type = data.get("type")
-    value = data.get("value")
+    devices = data.get("devices")
 
-    if not room or not sensor_type or value is None:
-        return jsonify({"error": "Eksik veri"}), 400
-
-    valid_types = ["temperature", "light", "energy"]
-
-    if sensor_type not in valid_types:
-        return jsonify({"error": "Geçersiz type"}), 400
+    if not room or not devices:
+        return jsonify({"error": "room ve devices gerekli"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO sensor_data (room, type, value)
+    for d in devices:
+    # ✅ CİHAZI ODAYA EKLE (EN ÖNEMLİ)
+      cursor.execute("""
+        INSERT INTO room_devices (room, device_name, power)
         VALUES (?, ?, ?)
-    """, (room, sensor_type, value))
+      """, (room, d["name"], d["power"]))
+
+    # ✅ chart için ilk veri
+    cursor.execute("""
+        INSERT INTO device_energy_log (room, device, value)
+        VALUES (?, ?, 0)
+    """, (room, d["name"]))
+
+    # ✅ simülasyon başlat
+    t = threading.Thread(
+        target=simulate_device,
+        args=(room, d["name"], d["power"]),
+        daemon=True
+    )
+    t.start()
+
 
     conn.commit()
     conn.close()
 
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "oda oluşturuldu"})
 
-# 🔷 TÜM VERİLER
-@app.route("/api/data")
-def get_all_data():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+@app.route("/api/room/<room>/device-history")
+def device_history(room):
 
-    cursor.execute("SELECT * FROM sensor_data ORDER BY id DESC LIMIT 100")
-    rows = cursor.fetchall()
-    conn.close()
-
-    return jsonify([dict(row) for row in rows])
-
-# 🔷 ODA VERİSİ (grafik için)
-@app.route("/api/room/<room>/data")
-def get_room_data(room):
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT type, value, timestamp
-        FROM sensor_data
-        WHERE room = ?
-        ORDER BY id DESC
+        SELECT device, value, timestamp
+        FROM device_energy_log
+        WHERE room=?
+        ORDER BY timestamp ASC
     """, (room,))
 
     rows = cursor.fetchall()
     conn.close()
 
     return jsonify([dict(row) for row in rows])
+
+
+@app.route("/api/delete-room", methods=["DELETE"])
+def delete_room():
+
+    data = request.get_json()
+    room = data.get("room")
+
+    if not room:
+        return jsonify({"error": "room gerekli"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 🔥 oda cihazlarını sil
+    cursor.execute("DELETE FROM room_devices WHERE room=?", (room,))
+
+    # 🔥 enerji loglarını da sil
+    cursor.execute("DELETE FROM device_energy_log WHERE room=?", (room,))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "oda silindi"})
+
+
+# 🔷 CİHAZ KONTROL
+@app.route("/api/room/control", methods=["POST"])
+def control_room():
+    data = request.get_json()
+
+    room = data.get("room")
+    device = data.get("device")
+    status = data.get("status")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE room_devices
+        SET status=?
+        WHERE room=? AND device_name=?
+    """, (status, room, device))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok"})
 
 # 🔷 ODA CİHAZLARI
 @app.route("/api/room/<room>/devices")
@@ -141,9 +228,9 @@ def get_room_devices(room):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT device_name, status, power
+        SELECT device_name, power, status
         FROM room_devices
-        WHERE room = ?
+        WHERE room=?
     """, (room,))
 
     devices = cursor.fetchall()
@@ -167,54 +254,34 @@ def get_room_devices(room):
     return jsonify({
         "room": room,
         "devices": result,
-        "total_energy": total
+        "total_energy": round(total, 2)
     })
 
-# 🔷 CİHAZ KONTROL
-@app.route("/api/room/control", methods=["POST"])
-def control_room():
-
-    data = request.get_json()
-
-    room = data.get("room")
-    device = data.get("device")
-    status = data.get("status")
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        UPDATE room_devices
-        SET status = ?
-        WHERE room = ? AND device_name = ?
-    """, (status, room, device))
-
-    conn.commit()
-    conn.close()
-
-    return jsonify({"status": "ok"})
-
-# 🔷 GENEL ÖZET
+# 🔷 SUMMARY (🔥 FIXED)
 @app.route("/api/summary")
 def summary():
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT room, SUM(value) as total
-        FROM sensor_data
-        WHERE type='energy'
-        GROUP BY room
-    """)
+    # 🔥 TÜM ODALAR (room_devices'tan)
+    cursor.execute("SELECT DISTINCT room FROM room_devices")
+    rooms = [r["room"] for r in cursor.fetchall()]
 
-    rows = cursor.fetchall()
-
-    total_energy = 0
     room_usage = {}
+    total_energy = 0
 
-    for row in rows:
-        room_usage[row["room"]] = row["total"]
-        total_energy += row["total"]
+    for room in rooms:
+        cursor.execute("""
+            SELECT SUM(value) as total
+            FROM device_energy_log
+            WHERE room=?
+        """, (room,))
+
+        total = cursor.fetchone()["total"] or 0
+
+        room_usage[room] = total
+        total_energy += total
 
     conn.close()
 
@@ -226,19 +293,41 @@ def summary():
         "room_usage": room_usage
     })
 
-@app.route("/room")
-def room_page():
-    room = request.args.get("room")
-    return render_template("room.html", room=room)
+# 🔷 LINE CHART DATA
+@app.route("/api/data")
+def get_all_data():
 
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT room, value, timestamp
+        FROM device_energy_log
+        ORDER BY timestamp ASC
+        LIMIT 1000
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return jsonify([
+        {
+            "room": r["room"],
+            "value": r["value"],
+            "timestamp": r["timestamp"],
+            "type": "energy"
+        }
+        for r in rows
+    ])
 
 # 🔷 TEMİZLE
 @app.route("/api/clear", methods=["DELETE"])
 def clear():
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM sensor_data")
+    cursor.execute("DELETE FROM device_energy_log")
 
     conn.commit()
     conn.close()

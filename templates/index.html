@@ -63,8 +63,15 @@ h1 {
     transition: 0.2s;
 }
 
+.room button {
+    margin-top: 10px;
+    cursor: pointer;
+}
+
+
 .room:hover {
     background: #334155;
+    transform: scale(1.05);
 }
 
 .line-chart {
@@ -82,6 +89,10 @@ h1 {
 <body>
 
 <h1>🏫 Dijital İkiz Sistemine Hoş Geldiniz</h1>
+<div style="text-align:center; margin-bottom:20px;">
+    <button onclick="addRoomUI()">➕ Yeni Oda</button>
+</div>
+
 <p class="subtitle">Enerji İzleme ve Simülasyon Paneli</p>
 
 <!-- ÜST -->
@@ -100,7 +111,10 @@ h1 {
         <h3>Aktif Oda Sayısı</h3>
         <p id="activeRooms">0</p>
     </div>
+    
 </div>
+
+
 
 <!-- ORTA -->
 <div class="main">
@@ -114,7 +128,10 @@ h1 {
 <!-- ALT -->
 <div class="line-chart">
     <h3>Enerji Geçmişi</h3>
+    <div style="height:300px;">
     <canvas id="lineChart"></canvas>
+</div>
+
 </div>
 
 <script>
@@ -141,6 +158,45 @@ async function loadData() {
     let history = await fetch('/api/data').then(r => r.json());
     drawLine(history);
 }
+
+function addRoomUI() {
+
+    let room = prompt("Oda adı gir:");
+
+    if (!room) return;
+
+    let devices = [];
+
+    if (confirm("Işık eklensin mi?")) {
+        devices.push({ name: "light", power: 0.5 });
+    }
+
+    if (confirm("Projeksiyon eklensin mi?")) {
+        devices.push({ name: "projector", power: 1.2 });
+    }
+
+    if (confirm("Bilgisayarlar eklensin mi?")) {
+        devices.push({ name: "computers", power: 3.5 });
+    }
+
+    if (confirm("Prizler eklensin mi?")) {
+        devices.push({ name: "sockets", power: 2.0 });
+    }
+
+    fetch('/api/add-room', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            room: room,
+            devices: devices
+        })
+    })
+    .then(() => {
+        alert("Oda eklendi!");
+        loadData(); // 🔥 dashboard refresh
+    });
+}
+
 
 function drawPie(data) {
 
@@ -172,30 +228,42 @@ function drawRooms(data) {
     container.innerHTML = "";
 
     for (let room in data) {
-
         let div = document.createElement("div");
         div.className = "room";
 
         div.innerHTML = `
-            <h4>${room}</h4>
+            <h4 onclick="openRoom('${room}')">${room}</h4>
             <p>${data[room]} kWh</p>
+            <button onclick="deleteRoom('${room}')">🗑 Sil</button>
         `;
-
-        // 🔥 TIKLANABİLİR
-        div.onclick = () => openRoom(room);
 
         container.appendChild(div);
     }
 }
 
+function deleteRoom(room) {
+
+    if (!confirm(room + " silinsin mi?")) return;
+
+    fetch('/api/delete-room', {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room: room })
+    })
+    .then(() => {
+        alert("Silindi");
+        loadData(); // 🔥 refresh
+    });
+}
+
+
+
 function drawLine(history) {
 
     if (lineChart) lineChart.destroy();
 
-    let energyData = history.filter(x => x.type === "energy");
-
-    let rooms = [...new Set(energyData.map(x => x.room))];
-    let labels = [...new Set(energyData.map(x => x.timestamp))];
+    let rooms = [...new Set(history.map(x => x.room))];
+    let labels = [...new Set(history.map(x => x.timestamp))];
 
     labels.sort((a, b) => new Date(a) - new Date(b));
 
@@ -203,11 +271,9 @@ function drawLine(history) {
 
     rooms.forEach((room, index) => {
 
-        let data = [];
-
-        labels.forEach(time => {
-            let record = energyData.find(x => x.room === room && x.timestamp === time);
-            data.push(record ? record.value : null);
+        let data = labels.map(time => {
+            let records = history.filter(x => x.room === room && x.timestamp === time);
+            return records.length ? records.reduce((sum, r) => sum + r.value, 0) : 0;
         });
 
         let colors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7'];
@@ -217,26 +283,48 @@ function drawLine(history) {
             data: data,
             borderColor: colors[index % colors.length],
             fill: false,
-            tension: 0.3,
-            spanGaps: true
+            tension: 0.3
         });
     });
 
     lineChart = new Chart(document.getElementById("lineChart"), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: datasets
-        }
-    });
+    type: "line",
+    data: {
+        labels: labels,
+        datasets: datasets
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
+    }
+});
+
 }
+
+
+async function addRoom() {
+
+    let room = prompt("Oda adı gir (örn: lab_405)");
+
+    if (!room) return;
+
+    await fetch('/api/add-room', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room })
+    });
+
+    loadData(); // 🔥 hemen yenile
+}
+
+
 
 function openRoom(room) {
     window.location.href = `/room?room=${room}`;
 }
 
 loadData();
-setInterval(loadData, 15000);
+setInterval(loadData, 3000);
 
 </script>
 

@@ -3,107 +3,157 @@
 <head>
 <meta charset="UTF-8">
 <title>Oda Detay</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
-    background:#0f172a;
-    color:white;
-    font-family:Arial;
-    padding:20px;
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    padding: 20px;
 }
 
-h1 {
-    text-align:center;
+h2 {
+    text-align: center;
 }
 
 .container {
-    max-width:800px;
-    margin:auto;
-}
-
-.total {
-    background:#1e293b;
-    padding:15px;
-    border-radius:10px;
-    text-align:center;
-    margin-bottom:20px;
+    display: flex;
+    gap: 30px;
+    margin-top: 20px;
 }
 
 .devices {
-    display:flex;
-    flex-wrap:wrap;
-    gap:15px;
+    flex: 1;
 }
 
 .device {
-    background:#1e293b;
-    padding:15px;
-    border-radius:10px;
-    width:180px;
-    text-align:center;
+    background: #1e293b;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 10px;
 }
 
+.chart-box {
+    flex: 1;
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+}
 button {
-    margin:5px;
-    padding:5px 10px;
-    border:none;
-    border-radius:5px;
-    cursor:pointer;
+    margin-right: 5px;
 }
-
-.on { background:#22c55e; }
-.off { background:#ef4444; }
-
 </style>
 </head>
 
 <body>
 
+<h2 id="roomName"></h2>
+
 <div class="container">
 
-<h1 id="roomName"></h1>
+    <!-- 🔹 CİHAZLAR -->
+    <div class="devices" id="deviceList"></div>
 
-<div class="total">
-    <h3>Toplam Enerji</h3>
-    <p id="totalEnergy">0 kWh</p>
-</div>
-
-<div class="devices" id="deviceList"></div>
+    <!-- 🔹 GRAFİK -->
+    <div class="chart-box">
+        <h3>Enerji Kullanımı</h3>
+        <canvas id="chart"></canvas>
+    </div>
 
 </div>
 
 <script>
+
+let chart;
 
 async function loadRoom() {
 
     const params = new URLSearchParams(window.location.search);
     const room = params.get("room");
 
-    document.getElementById("roomName").innerText = room;
+    document.getElementById("roomName").innerText = "📍 " + room;
 
-    let res = await fetch(`/api/room/${room}/devices`);
-    let data = await res.json();
-
-    document.getElementById("totalEnergy").innerText = data.total_energy + " kWh";
+    // 🔹 cihazları çek
+    let deviceData = await fetch(`/api/room/${room}/devices`).then(r => r.json());
 
     let container = document.getElementById("deviceList");
     container.innerHTML = "";
 
-    data.devices.forEach(d => {
+    deviceData.devices.forEach(d => {
 
         let div = document.createElement("div");
         div.className = "device";
 
         div.innerHTML = `
-            <h4>${d.device}</h4>
-            <p>Durum: ${d.status}</p>
-            <p>${d.energy} kWh</p>
+    <h4>${d.device}</h4>
 
-            <button class="on" onclick="toggle('${room}','${d.device}','on')">Aç</button>
-            <button class="off" onclick="toggle('${room}','${d.device}','off')">Kapat</button>
-        `;
+    <p style="color:${d.status === 'on' ? 'lime' : 'red'}">
+        ${d.status.toUpperCase()}
+    </p>
+
+    <p>Enerji: ${d.energy} kWh</p>
+
+    <button onclick="toggle('${room}','${d.device}','on')">Aç</button>
+    <button onclick="toggle('${room}','${d.device}','off')">Kapat</button>
+`;
+
 
         container.appendChild(div);
+    });
+
+    // 🔥 grafik verisi
+   let history = await fetch(`/api/room/${room}/device-history`)
+    .then(r => r.json());
+
+
+    drawChart(history);
+}
+
+function drawChart(data) {
+
+    if (chart) chart.destroy();
+
+    let devices = [...new Set(data.map(x => x.device))];
+
+let labels = [...new Set(data.map(x => x.timestamp))];
+labels.sort((a,b)=> new Date(a)-new Date(b));
+
+let datasets = devices.map((device, i) => {
+
+    let values = labels.map(t => {
+        let rec = data.find(x => x.device === device && x.timestamp === t);
+        return rec ? rec.value : null;
+    });
+
+    return {
+        label: device,
+        data: values,
+        borderColor: ['#3b82f6','#22c55e','#ef4444','#f59e0b'][i % 4],
+        fill: false,
+        tension: 0.3,
+        spanGaps: true
+    }
+});
+
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            plugins: {
+                legend: {
+                    labels: { color: "white" }
+                }
+            },
+            scales: {
+                x: { ticks: { color: "white" }},
+                y: { ticks: { color: "white" }, beginAtZero: true }
+            }
+        }
     });
 }
 
