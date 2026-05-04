@@ -12,7 +12,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# 🔥 DB
+#  DB
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -43,7 +43,7 @@ def init_db():
 
 init_db()
 
-# 🔥 SİMÜLASYON
+#  SİMÜLASYON
 def simulate_device(room, device, power):
     while True:
         conn = get_db_connection()
@@ -81,7 +81,7 @@ def simulate_device(room, device, power):
 
         time.sleep(5)
 
-# 🔥 TÜM CİHAZLARI BAŞLAT
+#  TÜM CİHAZLARI BAŞLAT
 def start_all_devices():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -100,7 +100,7 @@ def start_all_devices():
 
 start_all_devices()
 
-# 🔷 SAYFALAR
+#  SAYFALAR
 @app.route("/")
 def home():
     return "Sistem çalışıyor"
@@ -128,19 +128,19 @@ def add_room():
     cursor = conn.cursor()
 
     for d in devices:
-    # ✅ CİHAZI ODAYA EKLE (EN ÖNEMLİ)
+    
       cursor.execute("""
         INSERT INTO room_devices (room, device_name, power)
         VALUES (?, ?, ?)
       """, (room, d["name"], d["power"]))
 
-    # ✅ chart için ilk veri
+    #  chart için ilk veri
     cursor.execute("""
         INSERT INTO device_energy_log (room, device, value)
         VALUES (?, ?, 0)
     """, (room, d["name"]))
 
-    # ✅ simülasyon başlat
+    #  simülasyon başlat
     t = threading.Thread(
         target=simulate_device,
         args=(room, d["name"], d["power"]),
@@ -185,10 +185,10 @@ def delete_room():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 🔥 oda cihazlarını sil
+    #  oda cihazlarını sil
     cursor.execute("DELETE FROM room_devices WHERE room=?", (room,))
 
-    # 🔥 enerji loglarını da sil
+    #  enerji loglarını da sil
     cursor.execute("DELETE FROM device_energy_log WHERE room=?", (room,))
 
     conn.commit()
@@ -197,7 +197,7 @@ def delete_room():
     return jsonify({"status": "oda silindi"})
 
 
-# 🔷 CİHAZ KONTROL
+#  CİHAZ KONTROL
 @app.route("/api/room/control", methods=["POST"])
 def control_room():
     data = request.get_json()
@@ -220,7 +220,7 @@ def control_room():
 
     return jsonify({"status": "ok"})
 
-# 🔷 ODA CİHAZLARI
+#  ODA CİHAZLARI
 @app.route("/api/room/<room>/devices")
 def get_room_devices(room):
 
@@ -257,14 +257,14 @@ def get_room_devices(room):
         "total_energy": round(total, 2)
     })
 
-# 🔷 SUMMARY (🔥 FIXED)
+#  SUMMARY 
 @app.route("/api/summary")
 def summary():
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 🔥 TÜM ODALAR (room_devices'tan)
+    #  TÜM ODALAR 
     cursor.execute("SELECT DISTINCT room FROM room_devices")
     rooms = [r["room"] for r in cursor.fetchall()]
 
@@ -293,7 +293,7 @@ def summary():
         "room_usage": room_usage
     })
 
-# 🔷 LINE CHART DATA
+#  LINE CHART DATA
 @app.route("/api/data")
 def get_all_data():
 
@@ -320,7 +320,7 @@ def get_all_data():
         for r in rows
     ])
 
-# 🔷 TEMİZLE
+#  TEMİZLE
 @app.route("/api/clear", methods=["DELETE"])
 def clear():
 
