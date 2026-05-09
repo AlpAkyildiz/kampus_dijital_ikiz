@@ -20,7 +20,7 @@ h1{
 
 .cards{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(5,1fr);
     gap:15px;
     margin-top:30px;
 }
@@ -83,6 +83,11 @@ h1{
 </div>
 
 <div class="card">
+<h3>⚡ Akım</h3>
+<div class="value" id="current">0 A</div>
+</div>
+
+<div class="card">
 <h3>🚨 Alarm</h3>
 <div class="value" id="alarm">Normal</div>
 </div>
@@ -90,7 +95,7 @@ h1{
 </div>
 
 <div class="chart-box">
-<h3>Son Veriler</h3>
+<h3>Canlı Grafik</h3>
 <canvas id="chart"></canvas>
 </div>
 
@@ -102,70 +107,37 @@ Son Güncelleme: <span id="time">-</span>
 
 let chart;
 
-async function loadLive(){
+function initChart(){
 
-    let res = await fetch('/api/live');
-    let data = await res.json();
+    const ctx = document.getElementById("chart");
 
-    if(!data) return;
-
-    document.getElementById("temp").innerText =
-        data.temperature + " °C";
-
-    document.getElementById("hum").innerText =
-        data.humidity + " %";
-
-    document.getElementById("gas").innerText =
-        data.gas;
-
-    let alarm = document.getElementById("alarm");
-
-    if(data.gas_alarm == true){
-        alarm.innerText = "TEHLİKE";
-        alarm.className = "value alarm-on";
-    }else{
-        alarm.innerText = "Normal";
-        alarm.className = "value alarm-off";
-    }
-
-    document.getElementById("time").innerText =
-        new Date(data.created_at).toLocaleString("tr-TR");
-}
-
-async function loadChart(){
-
-    let res = await fetch('/api/history');
-    let rows = await res.json();
-
-    let labels = rows.map(x =>
-        new Date(x.created_at).toLocaleTimeString("tr-TR")
-    );
-
-    let temps = rows.map(x => x.temperature);
-    let hums = rows.map(x => x.humidity);
-
-    if(chart) chart.destroy();
-
-    chart = new Chart(document.getElementById("chart"),{
+    chart = new Chart(ctx,{
         type:'line',
         data:{
-            labels:labels,
+            labels:[],
             datasets:[
                 {
                     label:'Sıcaklık',
-                    data:temps,
+                    data:[],
                     borderColor:'#ef4444',
                     tension:0.3
                 },
                 {
                     label:'Nem',
-                    data:hums,
+                    data:[],
                     borderColor:'#3b82f6',
+                    tension:0.3
+                },
+                {
+                    label:'Akım',
+                    data:[],
+                    borderColor:'#22c55e',
                     tension:0.3
                 }
             ]
         },
         options:{
+            responsive:true,
             plugins:{
                 legend:{
                     labels:{color:'white'}
@@ -183,11 +155,66 @@ async function loadChart(){
     });
 }
 
-async function refresh(){
-    await loadLive();
-    await loadChart();
+async function loadLive(){
+
+    let res = await fetch('/api/live');
+    let data = await res.json();
+
+    if(!data || !data.created_at) return;
+
+    document.getElementById("temp").innerText =
+        data.temperature + " °C";
+
+    document.getElementById("hum").innerText =
+        data.humidity + " %";
+
+    document.getElementById("gas").innerText =
+        data.gas;
+
+    document.getElementById("current").innerText =
+        Number(data.current).toFixed(2) + " A";
+
+    let alarm = document.getElementById("alarm");
+
+    if(data.gas_alarm == true){
+        alarm.innerText = "TEHLİKE";
+        alarm.className = "value alarm-on";
+    }else{
+        alarm.innerText = "Normal";
+        alarm.className = "value alarm-off";
+    }
+
+    document.getElementById("time").innerText =
+        new Date(data.created_at).toLocaleString("tr-TR");
+
+    updateChart(data);
 }
 
+function updateChart(data){
+
+    let time =
+        new Date(data.created_at).toLocaleTimeString("tr-TR");
+
+    chart.data.labels.push(time);
+    chart.data.datasets[0].data.push(data.temperature);
+    chart.data.datasets[1].data.push(data.humidity);
+    chart.data.datasets[2].data.push(data.current);
+
+    if(chart.data.labels.length > 15){
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+        chart.data.datasets[1].data.shift();
+        chart.data.datasets[2].data.shift();
+    }
+
+    chart.update();
+}
+
+async function refresh(){
+    await loadLive();
+}
+
+initChart();
 refresh();
 setInterval(refresh,3000);
 

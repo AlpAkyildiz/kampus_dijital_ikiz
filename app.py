@@ -27,7 +27,7 @@ def dashboard():
 def live():
 
     r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.desc&limit=1",
+        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.asc&limit=1",
         headers=headers
     )
 
