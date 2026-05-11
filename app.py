@@ -27,7 +27,7 @@ def dashboard():
 def live():
 
     r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.asc&limit=1",
+        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.desc&limit=1",
         headers=headers
     )
 
@@ -43,7 +43,7 @@ def live():
 def history():
 
     r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=created_at.asc&limit=30",
+        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=created_at.desc&limit=30",
         headers=headers
     )
 

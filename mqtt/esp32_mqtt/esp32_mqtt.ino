@@ -2,6 +2,8 @@
 #include <PubSubClient.h>
 #include <DHT.h>
 
+#define MQTT_MAX_PACKET_SIZE 512   // 🔥 KRİTİK
+
 #define DHTPIN 4
 #define DHTTYPE DHT11
 
@@ -9,9 +11,9 @@
 #define ALARM_PIN 27
 #define CURRENT_PIN 32
 
-#define LIGHT_PIN 25       // Işık sensörü D0
-#define FLAME_D0 26        // Alev sensörü D0
-#define FLAME_A0 33        // Alev sensörü A0
+#define LIGHT_PIN 35
+#define FLAME_D0 26
+#define FLAME_A0 33
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -23,12 +25,10 @@ const char* mqtt_server = "broker.hivemq.com";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// ACS712 30A ayarları
 float sensitivity = 0.066;
-float zeroCurrentVoltage = 2.5;
+float zeroCurrentVoltage = 2.410;
 
 void setup_wifi() {
-
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -40,35 +40,29 @@ void setup_wifi() {
 }
 
 void reconnect() {
-
   while (!client.connected()) {
-
     if (client.connect("ESP32Client123")) {
       Serial.println("MQTT bağlandı");
     } else {
+      Serial.println("MQTT bağlanamadı...");
       delay(2000);
     }
   }
 }
 
 float readCurrent() {
-
   long total = 0;
 
-  for(int i=0; i<20; i++){
+  for(int i=0; i<50; i++){
     total += analogRead(CURRENT_PIN);
     delay(2);
   }
 
-  int raw = total / 20;
-
+  int raw = total / 50;
   float voltage = (raw / 4095.0) * 3.3;
+  float current = (voltage - zeroCurrentVoltage) / sensitivity;
 
-  float zeroScaled = zeroCurrentVoltage * (3.3 / 5.0);
-
-  float current = (voltage - zeroScaled) / sensitivity;
-
-  if(current < 0.08 && current > -0.08)
+  if(current < 0.15 && current > -0.15)
     current = 0;
 
   return abs(current);
@@ -81,14 +75,15 @@ void setup() {
   dht.begin();
 
   pinMode(ALARM_PIN, INPUT_PULLUP);
-  pinMode(LIGHT_PIN, INPUT);
-  pinMode(FLAME_D0, INPUT);
+  pinMode(FLAME_D0, INPUT_PULLUP);
+  pinMode(LIGHT_PIN, INPUT_PULLUP);
 
   analogReadResolution(12);
 
   setup_wifi();
 
   client.setServer(mqtt_server, 1883);
+  client.setBufferSize(512);   // 🔥 KRİTİK
 }
 
 void loop() {
@@ -111,28 +106,28 @@ void loop() {
 
   float current = readCurrent();
 
-  int lightState = digitalRead(LIGHT_PIN);
-
-  int flameState = digitalRead(FLAME_D0);
+  int lightValue = analogRead(LIGHT_PIN);
+  bool lightDetected = (lightValue < 2000);  // threshold ayarla
+  bool flameDetected = (digitalRead(FLAME_D0) == LOW);
   int flameValue = analogRead(FLAME_A0);
 
   String payload = "{";
-
   payload += "\"temperature\":" + String(temp,1) + ",";
   payload += "\"humidity\":" + String(hum,1) + ",";
   payload += "\"gas\":" + String(gas) + ",";
   payload += "\"gas_alarm\":" + String(alarm == 0 ? "true":"false") + ",";
-
-  payload += "\"light_detected\":" + String(lightState == 0 ? "true":"false") + ",";
-
-  payload += "\"flame_detected\":" + String(flameState == 0 ? "true":"false") + ",";
+  payload += "\"light_detected\":" + String(lightDetected ? "true":"false") + ",";
+  payload += "\"light_value\":" + String(lightValue) + ",";
   payload += "\"flame_value\":" + String(flameValue) + ",";
-
   payload += "\"current\":" + String(current,2);
-
   payload += "}";
 
-  client.publish("dijitalikiz/lab1", payload.c_str());
+  // 🔥 KRİTİK DEBUG
+  if(client.publish("dijitalikiz/lab1", payload.c_str())){
+    Serial.println("✅ GÖNDERİLDİ");
+  } else {
+    Serial.println("❌ GÖNDERİLEMEDİ");
+  }
 
   Serial.println(payload);
 
