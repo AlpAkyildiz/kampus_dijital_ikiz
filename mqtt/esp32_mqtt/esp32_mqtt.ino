@@ -2,7 +2,7 @@
 #include <PubSubClient.h>
 #include <DHT.h>
 
-#define MQTT_MAX_PACKET_SIZE 512   // 🔥 KRİTİK
+#define MQTT_MAX_PACKET_SIZE 512
 
 #define DHTPIN 4
 #define DHTTYPE DHT11
@@ -12,8 +12,7 @@
 #define CURRENT_PIN 32
 
 #define LIGHT_PIN 35
-#define FLAME_D0 26
-#define FLAME_A0 33
+#define FLAME_A0 33   // 🔥 sadece analog kullanıyoruz
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -25,6 +24,7 @@ const char* mqtt_server = "broker.hivemq.com";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+// ACS712
 float sensitivity = 0.066;
 float zeroCurrentVoltage = 2.410;
 
@@ -36,15 +36,16 @@ void setup_wifi() {
     Serial.print(".");
   }
 
-  Serial.println("WiFi bağlandı");
+  Serial.println("\nWiFi bağlandı");
 }
 
 void reconnect() {
   while (!client.connected()) {
+    Serial.println("MQTT bağlanıyor...");
     if (client.connect("ESP32Client123")) {
-      Serial.println("MQTT bağlandı");
+      Serial.println("✅ MQTT bağlandı");
     } else {
-      Serial.println("MQTT bağlanamadı...");
+      Serial.println("❌ MQTT bağlanamadı...");
       delay(2000);
     }
   }
@@ -75,15 +76,13 @@ void setup() {
   dht.begin();
 
   pinMode(ALARM_PIN, INPUT_PULLUP);
-  pinMode(FLAME_D0, INPUT_PULLUP);
-  pinMode(LIGHT_PIN, INPUT_PULLUP);
 
   analogReadResolution(12);
 
   setup_wifi();
 
   client.setServer(mqtt_server, 1883);
-  client.setBufferSize(512);   // 🔥 KRİTİK
+  client.setBufferSize(512);
 }
 
 void loop() {
@@ -106,23 +105,39 @@ void loop() {
 
   float current = readCurrent();
 
+  // 💡 IŞIK (ANALOG)
   int lightValue = analogRead(LIGHT_PIN);
-  bool lightDetected = (lightValue < 2000);  // threshold ayarla
-  bool flameDetected = (digitalRead(FLAME_D0) == LOW);
+  bool lightDetected = (lightValue < 2000);
+
+  // 🔥 ALEV (ANALOG - DOĞRU YÖNTEM)
   int flameValue = analogRead(FLAME_A0);
+  bool flameDetected = (flameValue < 2000);
+
+  // 🔍 DEBUG
+  Serial.print("Light: ");
+  Serial.print(lightValue);
+  Serial.print(" | Flame: ");
+  Serial.print(flameValue);
+  Serial.print(" | Current: ");
+  Serial.println(current);
 
   String payload = "{";
+
   payload += "\"temperature\":" + String(temp,1) + ",";
   payload += "\"humidity\":" + String(hum,1) + ",";
   payload += "\"gas\":" + String(gas) + ",";
   payload += "\"gas_alarm\":" + String(alarm == 0 ? "true":"false") + ",";
+
   payload += "\"light_detected\":" + String(lightDetected ? "true":"false") + ",";
   payload += "\"light_value\":" + String(lightValue) + ",";
+
+  payload += "\"flame_detected\":" + String(flameDetected ? "true":"false") + ",";
   payload += "\"flame_value\":" + String(flameValue) + ",";
+
   payload += "\"current\":" + String(current,2);
+
   payload += "}";
 
-  // 🔥 KRİTİK DEBUG
   if(client.publish("dijitalikiz/lab1", payload.c_str())){
     Serial.println("✅ GÖNDERİLDİ");
   } else {

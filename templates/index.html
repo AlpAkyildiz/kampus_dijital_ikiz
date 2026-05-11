@@ -8,7 +8,7 @@
 <style>
 body{
     margin:0;
-    padding:20px;
+    padding:15px;
     background:#0f172a;
     color:white;
     font-family:Arial;
@@ -16,47 +16,45 @@ body{
 
 h1{
     text-align:center;
+    font-size:22px;
 }
 
 .cards{
     display:grid;
-    grid-template-columns:repeat(5,1fr);
-    gap:15px;
-    margin-top:30px;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:12px;
+    margin-top:20px;
 }
 
 .card{
     background:#1e293b;
-    padding:20px;
+    padding:15px;
     border-radius:12px;
     text-align:center;
 }
 
 .value{
-    font-size:28px;
+    font-size:22px;
     font-weight:bold;
-    margin-top:10px;
+    margin-top:8px;
 }
 
-.alarm-on{
-    color:#ef4444;
-}
-
-.alarm-off{
-    color:#22c55e;
-}
+.good{ color:#22c55e; }
+.warn{ color:#f59e0b; }
+.danger{ color:#ef4444; }
 
 .chart-box{
-    margin-top:30px;
+    margin-top:20px;
     background:#1e293b;
-    padding:20px;
+    padding:15px;
     border-radius:12px;
 }
 
 .footer{
     text-align:center;
-    margin-top:20px;
+    margin-top:15px;
     color:#94a3b8;
+    font-size:12px;
 }
 </style>
 </head>
@@ -88,19 +86,25 @@ h1{
 </div>
 
 <div class="card">
+<h3>💡 Işık</h3>
+<div class="value" id="light">-</div>
+</div>
+
+<div class="card">
+<h3>🔥 Alev</h3>
+<div class="value" id="flame">-</div>
+</div>
+
+<div class="card">
+<h3>📊 Alev Değeri</h3>
+<div class="value" id="flame_val">0</div>
+</div>
+
+<div class="card">
 <h3>🚨 Alarm</h3>
 <div class="value" id="alarm">Normal</div>
 </div>
 
-</div>
-
-<div class="chart-box">
-<h3>Canlı Grafik</h3>
-<canvas id="chart"></canvas>
-</div>
-
-<div class="footer">
-Son Güncelleme: <span id="time">-</span>
 </div>
 
 <script>
@@ -174,14 +178,38 @@ async function loadLive(){
     document.getElementById("current").innerText =
         Number(data.current).toFixed(2) + " A";
 
+    // 💡 IŞIK
+    let light = document.getElementById("light");
+    if(data.light_detected){
+        light.innerText = "AÇIK";
+        light.className = "value warn";
+    }else{
+        light.innerText = "KAPALI";
+        light.className = "value good";
+    }
+
+    // 🔥 ALEV
+    let flame = document.getElementById("flame");
+    if(data.flame_detected){
+        flame.innerText = "VAR";
+        flame.className = "value danger";
+    }else{
+        flame.innerText = "YOK";
+        flame.className = "value good";
+    }
+
+    document.getElementById("flame_val").innerText =
+        data.flame_value;
+
+    // 🚨 ALARM (GELİŞMİŞ)
     let alarm = document.getElementById("alarm");
 
-    if(data.gas_alarm == true){
+    if(data.gas_alarm || data.flame_detected){
         alarm.innerText = "TEHLİKE";
-        alarm.className = "value alarm-on";
+        alarm.className = "value danger";
     }else{
         alarm.innerText = "Normal";
-        alarm.className = "value alarm-off";
+        alarm.className = "value good";
     }
 
     document.getElementById("time").innerText =
