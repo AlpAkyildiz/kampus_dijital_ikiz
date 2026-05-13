@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, render_template
+from flask_cors import CORS
 import requests
 import os
 from dotenv import load_dotenv
@@ -6,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -27,7 +29,7 @@ def dashboard():
 def live():
 
     r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.desc&limit=1",
+        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.asc&limit=1",
         headers=headers
     )
 
@@ -38,16 +40,17 @@ def live():
 
     return jsonify(data[0])
 
+@app.route("/manifest.json")
+def manifest():
+    return app.send_static_file("manifest.json")
 
 @app.route("/api/history")
 def history():
-
     r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=created_at.desc&limit=30",
+        f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=id.asc&limit=30",
         headers=headers
     )
-
     return jsonify(r.json())
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -5,10 +5,11 @@
 <title>Dijital İkiz Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+
 <style>
 body{
     margin:0;
-    padding:15px;
+    padding:20px;
     background:#0f172a;
     color:white;
     font-family:Arial;
@@ -16,45 +17,47 @@ body{
 
 h1{
     text-align:center;
-    font-size:22px;
 }
 
 .cards{
     display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-    gap:12px;
-    margin-top:20px;
+    grid-template-columns:repeat(5,1fr);
+    gap:15px;
+    margin-top:30px;
 }
 
 .card{
     background:#1e293b;
-    padding:15px;
+    padding:20px;
     border-radius:12px;
     text-align:center;
 }
 
 .value{
-    font-size:22px;
+    font-size:28px;
     font-weight:bold;
-    margin-top:8px;
+    margin-top:10px;
 }
 
-.good{ color:#22c55e; }
-.warn{ color:#f59e0b; }
-.danger{ color:#ef4444; }
+.alarm-on{
+    color:#ef4444;
+}
+
+.alarm-off{
+    color:#22c55e;
+}
 
 .chart-box{
-    margin-top:20px;
+    margin-top:30px;
     background:#1e293b;
-    padding:15px;
+    padding:20px;
     border-radius:12px;
 }
 
 .footer{
     text-align:center;
-    margin-top:15px;
+    margin-top:20px;
     color:#94a3b8;
-    font-size:12px;
 }
 </style>
 </head>
@@ -86,166 +89,96 @@ h1{
 </div>
 
 <div class="card">
-<h3>💡 Işık</h3>
-<div class="value" id="light">-</div>
-</div>
-
-<div class="card">
-<h3>🔥 Alev</h3>
-<div class="value" id="flame">-</div>
-</div>
-
-<div class="card">
-<h3>📊 Alev Değeri</h3>
-<div class="value" id="flame_val">0</div>
-</div>
-
-<div class="card">
 <h3>🚨 Alarm</h3>
 <div class="value" id="alarm">Normal</div>
 </div>
 
 </div>
 
-<script>
+<div class="chart-box">
+<h3>Canlı Grafik</h3>
+<canvas id="chart"></canvas>
+</div>
 
+<div class="footer">
+Son Güncelleme: <span id="time">-</span>
+</div>
+
+<script>
 let chart;
 
 function initChart(){
-
-    const ctx = document.getElementById("chart");
-
-    chart = new Chart(ctx,{
-        type:'line',
-        data:{
-            labels:[],
-            datasets:[
-                {
-                    label:'Sıcaklık',
-                    data:[],
-                    borderColor:'#ef4444',
-                    tension:0.3
-                },
-                {
-                    label:'Nem',
-                    data:[],
-                    borderColor:'#3b82f6',
-                    tension:0.3
-                },
-                {
-                    label:'Akım',
-                    data:[],
-                    borderColor:'#22c55e',
-                    tension:0.3
-                }
-            ]
-        },
-        options:{
-            responsive:true,
-            plugins:{
-                legend:{
-                    labels:{color:'white'}
-                }
-            },
-            scales:{
-                x:{
-                    ticks:{color:'white'}
-                },
-                y:{
-                    ticks:{color:'white'}
-                }
-            }
-        }
-    });
+  chart = new Chart(document.getElementById("chart"),{
+    type:'line',
+    data:{
+      labels:[],
+      datasets:[
+        { label:'Sıcaklık', data:[], borderColor:'#ef4444', tension:0.3 },
+        { label:'Nem', data:[], borderColor:'#3b82f6', tension:0.3 },
+        { label:'Akım', data:[], borderColor:'#22c55e', tension:0.3 }
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{ legend:{ labels:{ color:'white' } } },
+      scales:{
+        x:{ ticks:{ color:'white' } },
+        y:{ ticks:{ color:'white' } }
+      }
+    }
+  });
 }
 
 async function loadLive(){
+  let res = await fetch('/api/live?t=' + Date.now());
+  let data = await res.json();
 
-    let res = await fetch('/api/live');
-    let data = await res.json();
+  if(!data || !data.id) return;
 
-    if(!data || !data.created_at) return;
+  document.getElementById("temp").innerText = data.temperature + " °C";
+  document.getElementById("hum").innerText = data.humidity + " %";
+  document.getElementById("gas").innerText = data.gas;
+  document.getElementById("current").innerText = Number(data.current || 0).toFixed(2) + " A";
 
-    document.getElementById("temp").innerText =
-        data.temperature + " °C";
+  let alarm = document.getElementById("alarm");
 
-    document.getElementById("hum").innerText =
-        data.humidity + " %";
+  if(data.gas_alarm == true){
+    alarm.innerText = "TEHLİKE";
+    alarm.className = "value alarm-on";
+  }else{
+    alarm.innerText = "Normal";
+    alarm.className = "value alarm-off";
+  }
 
-    document.getElementById("gas").innerText =
-        data.gas;
-
-    document.getElementById("current").innerText =
-        Number(data.current).toFixed(2) + " A";
-
-    // 💡 IŞIK
-    let light = document.getElementById("light");
-    if(data.light_detected){
-        light.innerText = "AÇIK";
-        light.className = "value warn";
-    }else{
-        light.innerText = "KAPALI";
-        light.className = "value good";
-    }
-
-    // 🔥 ALEV
-    let flame = document.getElementById("flame");
-    if(data.flame_detected){
-        flame.innerText = "VAR";
-        flame.className = "value danger";
-    }else{
-        flame.innerText = "YOK";
-        flame.className = "value good";
-    }
-
-    document.getElementById("flame_val").innerText =
-        data.flame_value;
-
-    // 🚨 ALARM (GELİŞMİŞ)
-    let alarm = document.getElementById("alarm");
-
-    if(data.gas_alarm || data.flame_detected){
-        alarm.innerText = "TEHLİKE";
-        alarm.className = "value danger";
-    }else{
-        alarm.innerText = "Normal";
-        alarm.className = "value good";
-    }
-
-    document.getElementById("time").innerText =
-        new Date(data.created_at).toLocaleString("tr-TR");
-
-    updateChart(data);
+  document.getElementById("time").innerText =
+    new Date(data.created_at).toLocaleString("tr-TR");
 }
 
-function updateChart(data){
+async function loadChart(){
+  let res = await fetch('/api/history?t=' + Date.now());
+  let rows = await res.json();
 
-    let time =
-        new Date(data.created_at).toLocaleTimeString("tr-TR");
+  if(!rows || rows.length === 0) return;
 
-    chart.data.labels.push(time);
-    chart.data.datasets[0].data.push(data.temperature);
-    chart.data.datasets[1].data.push(data.humidity);
-    chart.data.datasets[2].data.push(data.current);
+  chart.data.labels = rows.map(x =>
+    new Date(x.created_at).toLocaleTimeString("tr-TR")
+  );
 
-    if(chart.data.labels.length > 15){
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
-        chart.data.datasets[1].data.shift();
-        chart.data.datasets[2].data.shift();
-    }
+  chart.data.datasets[0].data = rows.map(x => Number(x.temperature || 0));
+  chart.data.datasets[1].data = rows.map(x => Number(x.humidity || 0));
+  chart.data.datasets[2].data = rows.map(x => Number(x.current || 0));
 
-    chart.update();
+  chart.update();
 }
 
 async function refresh(){
-    await loadLive();
+  await loadLive();
+  await loadChart();
 }
 
 initChart();
 refresh();
 setInterval(refresh,3000);
-
 </script>
 
 </body>
