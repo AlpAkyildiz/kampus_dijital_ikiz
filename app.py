@@ -1,63 +1,105 @@
 import requests
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
-import time
+import json
+
+# 🔥 Firebase Admin
+import firebase_admin
+from firebase_admin import credentials, messaging
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
+# 🔑 Firebase Admin init (ENV'den)
+cred_json = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+cred = credentials.Certificate(cred_json)
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
+# 🌍 ENV
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_IDS = os.getenv("CHAT_IDS").split(",")
+# 📱 token list (geçici)
+tokens = set()
 
-last_alert_time = 0
+# 🧠 state
+last_state = {
+    "gas_alert": False,
+    "flame_alert": False
+}
 
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}"
 }
 
-def send_telegram(msg):
-    global last_alert_time
+# 📲 PUSH
+def send_push(title, body):
+    for token in tokens:
+        try:
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=title,
+                    body=body,
+                ),
+                token=token,
+            )
 
-    now = time.time()
+            messaging.send(message)
+            print("✅ Push gönderildi")
 
-    # ⏱️ cooldown (60 sn)
-    if now - last_alert_time < 60:
-        return
+        except Exception as e:
+            print("❌ Push hatası:", e)
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+# 📲 TOKEN KAYDET
+@app.route("/api/token", methods=["POST"])
+def save_token():
+    data = request.json
+    token = data.get("token")
 
-    try:
-        for chat_id in CHAT_IDS:
-            requests.post(url, data={
-                "chat_id": chat_id,
-                "text": msg
-            })
+    if token:
+        tokens.add(token)
+        print("📱 Token kaydedildi:", token)
 
-        last_alert_time = now
-        print("Telegram bildirimi gönderildi")
+    return {"status": "ok"}
 
-    except Exception as e:
-        print("Telegram gönderilemedi:", e)
+# 🧠 AKILLI KONTROL
+def check_and_notify(sensor):
+    gas = sensor.get("gas", 0)
+    flame = sensor.get("flame_detected", False)
 
+    # 🚨 GAZ
+    if gas > 2000:
+        if not last_state["gas_alert"]:
+            send_push("🚨 Gaz Tehlikesi!", f"Değer: {gas}")
+            last_state["gas_alert"] = True
+    else:
+        last_state["gas_alert"] = False
 
+    # 🔥 ALEV
+    if flame:
+        if not last_state["flame_alert"]:
+            send_push("🔥 Alev Algılandı!", "Acil kontrol gerekli!")
+            last_state["flame_alert"] = True
+    else:
+        last_state["flame_alert"] = False
+
+# 🌐 SAYFALAR
 @app.route("/")
 def home():
     return render_template("index.html")
-
 
 @app.route("/dashboard")
 def dashboard():
     return render_template("index.html")
 
-
+# 📡 CANLI DATA
 @app.route("/api/live")
 def live():
     r = requests.get(
@@ -72,19 +114,12 @@ def live():
 
     sensor = data[0]
 
-    gas = sensor.get("gas", 0)
-    flame = sensor.get("flame_detected", False)
-
-    # 🔥 alarm kontrol
-    if gas > 2000:
-        send_telegram(f"🔥 UYARI! Gaz seviyesi yüksek: {gas}")
-
-    if flame:
-        send_telegram("🔥 UYARI! Alev algılandı!")
+    # 🔥 AKILLI BİLDİRİM
+    check_and_notify(sensor)
 
     return jsonify(sensor)
 
-
+# 📊 GEÇMİŞ
 @app.route("/api/history")
 def history():
     r = requests.get(
@@ -93,11 +128,9 @@ def history():
     )
     return jsonify(r.json())
 
-
 @app.route("/manifest.json")
 def manifest():
     return app.send_static_file("manifest.json")
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
