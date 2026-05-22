@@ -28,21 +28,22 @@ def send_telegram(msg):
 
     now = time.time()
 
-    # 60 saniyede bir uyarı göndersin, spam olmasın
+    # ⏱️ cooldown (60 sn)
     if now - last_alert_time < 60:
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
-    data = {
-        "chat_id": CHAT_ID,
-        "text": msg
-    }
-
     try:
-        requests.post(url, data=data)
+        for chat_id in CHAT_IDS:
+            requests.post(url, data={
+                "chat_id": chat_id,
+                "text": msg
+            })
+
         last_alert_time = now
         print("Telegram bildirimi gönderildi")
+
     except Exception as e:
         print("Telegram gönderilemedi:", e)
 
@@ -74,18 +75,14 @@ def live():
     gas = sensor.get("gas", 0)
     flame = sensor.get("flame_detected", False)
 
+    # 🔥 alarm kontrol
     if gas > 2000:
         send_telegram(f"🔥 UYARI! Gaz seviyesi yüksek: {gas}")
 
-    if flame == True:
+    if flame:
         send_telegram("🔥 UYARI! Alev algılandı!")
 
     return jsonify(sensor)
-
-
-@app.route("/manifest.json")
-def manifest():
-    return app.send_static_file("manifest.json")
 
 
 @app.route("/api/history")
@@ -97,5 +94,11 @@ def history():
     return jsonify(r.json())
 
 
+@app.route("/manifest.json")
+def manifest():
+    return app.send_static_file("manifest.json")
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
