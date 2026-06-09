@@ -52,6 +52,10 @@ headers = {
 
 # 📲 PUSH
 def send_push(title, body):
+
+    print("🚀 PUSH DENENIYOR")
+    print("📱 TOKEN SAYISI:", len(tokens))
+
     for token in tokens:
         try:
             message = messaging.Message(
@@ -62,8 +66,10 @@ def send_push(title, body):
                 token=token,
             )
 
-            messaging.send(message)
+            response = messaging.send(message)
+
             print("✅ Push gönderildi")
+            print("Firebase Response:", response)
 
         except Exception as e:
             print("❌ Push hatası:", e)
@@ -71,12 +77,15 @@ def send_push(title, body):
 # 📲 TOKEN KAYDET
 @app.route("/api/token", methods=["POST"])
 def save_token():
+
     data = request.json
     token = data.get("token")
 
     if token:
         tokens.add(token)
-        print("📱 Token kaydedildi:", token)
+
+        print("📱 Token kaydedildi")
+        print("📱 Toplam token:", len(tokens))
 
     return {"status": "ok"}
 
@@ -88,7 +97,7 @@ def check_and_notify(sensor):
     gas = sensor.get("gas", 0)
     flame = sensor.get("flame_detected", False)
     motion = sensor.get("motion_detected", False)
-    light_value = sensor.get("light", 0)  # eğer sayı olarak geliyorsa
+    light_value = sensor.get("light_value", 0)  # eğer sayı olarak geliyorsa
     light_detected = sensor.get("light_detected", False)
 
     # 🚨 GAZ
