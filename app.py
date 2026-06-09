@@ -170,6 +170,7 @@ def live():
         f"{SUPABASE_URL}/rest/v1/sensor_data?select=*&order=created_at.desc&limit=1",
         headers=headers
     )
+    print("🌐 LIVE ÇAĞRILDI")
 
     data = r.json()
 
