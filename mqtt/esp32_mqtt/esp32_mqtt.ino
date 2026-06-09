@@ -8,11 +8,14 @@
 #define DHTTYPE DHT11
 
 #define GAS_PIN 34
-#define ALARM_PIN 27
+#define ALARM_PIN 27  
 #define CURRENT_PIN 32
+#define PIR_PIN 25
+
+#define LED_PIN 5
 
 #define LIGHT_PIN 35
-#define FLAME_A0 33   // 🔥 sadece analog kullanıyoruz
+#define FLAME_A0 33
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -77,7 +80,11 @@ void setup() {
 
   pinMode(ALARM_PIN, INPUT_PULLUP);
 
+  pinMode(PIR_PIN, INPUT);
+
   analogReadResolution(12);
+
+   pinMode(LED_PIN, OUTPUT);
 
   setup_wifi();
 
@@ -91,6 +98,13 @@ void loop() {
     reconnect();
 
   client.loop();
+
+ 
+
+  int motion = digitalRead(PIR_PIN);
+  bool motionDetected = (motion == HIGH);
+
+   
 
   float temp = dht.readTemperature();
   float hum  = dht.readHumidity();
@@ -108,6 +122,11 @@ void loop() {
   // 💡 IŞIK (ANALOG)
   int lightValue = analogRead(LIGHT_PIN);
   bool lightDetected = (lightValue < 2000);
+    if (lightDetected) {
+    digitalWrite(LED_PIN, LOW);   // Ortam aydınlık
+    } else {
+    digitalWrite(LED_PIN, HIGH);  // Ortam karanlık
+    }
 
   // 🔥 ALEV (ANALOG - DOĞRU YÖNTEM)
   int flameValue = analogRead(FLAME_A0);
@@ -120,6 +139,8 @@ void loop() {
   Serial.print(flameValue);
   Serial.print(" | Current: ");
   Serial.println(current);
+  Serial.print(" | Motion: ");
+  Serial.print(motionDetected);
 
   String payload = "{";
 
@@ -135,6 +156,7 @@ void loop() {
   payload += "\"flame_value\":" + String(flameValue) + ",";
 
   payload += "\"current\":" + String(current,2);
+  payload += "\"motion_detected\":" + String(motionDetected ? "true":"false") + ",";
 
   payload += "}";
 

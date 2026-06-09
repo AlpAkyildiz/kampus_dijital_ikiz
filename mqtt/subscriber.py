@@ -50,6 +50,7 @@ def on_message(client, userdata, msg):
         data.setdefault("flame_detected", False)
         data.setdefault("flame_value", 0)
         data.setdefault("current", 0)
+        data.setdefault("motion_detected", False)
 
         # 🕒 Türkiye saat
         turkey_time = datetime.utcnow() + timedelta(hours=3)
