@@ -152,13 +152,13 @@ void loop() {
   payload += "\"light_detected\":" + String(lightDetected ? "true":"false") + ",";
   payload += "\"light_value\":" + String(lightValue) + ",";
 
-  payload += "\"flame_detected\":" + String(flameDetected ? "true":"false") + ",";
-  payload += "\"flame_value\":" + String(flameValue) + ",";
+ payload += "\"flame_detected\":" + String(flameDetected ? "true":"false") + ",";
+ payload += "\"flame_value\":" + String(flameValue) + ",";
 
-  payload += "\"current\":" + String(current,2);
-  payload += "\"motion_detected\":" + String(motionDetected ? "true":"false") + ",";
+ payload += "\"current\":" + String(current,2) + ",";
+ payload += "\"motion_detected\":" + String(motionDetected ? "true":"false");
 
-  payload += "}";
+payload += "}";
 
   if(client.publish("dijitalikiz/lab1", payload.c_str())){
     Serial.println("✅ GÖNDERİLDİ");
