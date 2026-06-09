@@ -7,6 +7,8 @@ import json
 
 from datetime import datetime, timedelta
 
+print("🚀 APP.PY BAŞLADI")
+
 last_motion_time = datetime.now()
 
 light_alert_sent = False
