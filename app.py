@@ -4,7 +4,7 @@ from flask_cors import CORS
 import os
 from dotenv import load_dotenv
 import json
-
+import paho.mqtt.publish as publish
 from datetime import datetime, timedelta
 
 print("🚀 APP.PY BAŞLADI")
@@ -16,7 +16,7 @@ light_alert_sent = False
 LIGHT_THRESHOLD = 500
 
 
-
+light_state = False
 
 # 🔥 Firebase Admin
 import firebase_admin
@@ -26,6 +26,9 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_TOPIC = "dijitalikiz/lab1/led"
 
 # 🔑 Firebase Admin init (ENV'den)
 cred_json = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
@@ -91,6 +94,25 @@ def save_token():
 
     return {"status": "ok"}
 
+
+
+def save_event(event_type, message, value=None):
+    requests.post(
+        f"{SUPABASE_URL}/rest/v1/notification_logs",
+        headers={
+            **headers,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+        },
+        json={
+            "type": event_type,
+            "message": message,
+            "sensor_value": value
+        }
+    )
+
+
+
 # 🧠 AKILLI KONTROL
 def check_and_notify(sensor):
     global last_motion_time
@@ -109,6 +131,7 @@ def check_and_notify(sensor):
     if gas > 2000:
         if not last_state["gas_alert"]:
             send_push("🚨 Gaz Tehlikesi!", f"Değer: {gas}")
+            save_event("gas", "Gaz seviyesi kritik", gas)
             last_state["gas_alert"] = True
     else:
         last_state["gas_alert"] = False
@@ -123,6 +146,7 @@ def check_and_notify(sensor):
     if flame:
         if not last_state["flame_alert"]:
             send_push("🔥 Alev Algılandı!", "Acil kontrol gerekli!")
+            save_event("flame", "Alev algılandı")
             last_state["flame_alert"] = True
     else:
         last_state["flame_alert"] = False
@@ -146,6 +170,7 @@ def check_and_notify(sensor):
                 "💡 Işıklar Açık Kalmış",
                 "LAB 1 sınıfında uzun süredir hareket yok ancak ışıklar açık görünüyor."
             )
+            save_event("light", "Işık açık kaldı")
 
             print("💡 LAB 1 ışık uyarısı gönderildi")
 
@@ -184,6 +209,59 @@ def live():
     check_and_notify(sensor)
 
     return jsonify(sensor)
+
+
+@app.route("/api/events")
+def events():
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/notification_logs?select=*&order=created_at.desc&limit=30",
+        headers=headers
+    )
+
+    return jsonify(r.json())
+
+
+
+@app.route("/api/light/on", methods=["POST"])
+def light_on():
+    global light_state
+
+    light_state = True
+
+    publish.single(
+        MQTT_TOPIC,
+        "ON",
+        hostname=MQTT_BROKER
+    )
+
+    return {
+        "status": "ok",
+        "light": light_state
+    }
+
+
+@app.route("/api/light/off", methods=["POST"])
+def light_off():
+    global light_state
+
+    light_state = False
+
+    publish.single(
+        MQTT_TOPIC,
+        "OFF",
+        hostname=MQTT_BROKER
+    )
+
+    return {
+        "status": "ok",
+        "light": light_state
+    }
+
+@app.route("/api/light/status")
+def light_status():
+    return {
+        "light": light_state
+    }
 
 # 📊 GEÇMİŞ
 @app.route("/api/history")

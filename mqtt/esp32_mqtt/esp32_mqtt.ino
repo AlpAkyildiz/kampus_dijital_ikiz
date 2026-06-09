@@ -27,6 +27,8 @@ const char* mqtt_server = "broker.hivemq.com";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+bool ledState = false;
+
 // Callback bildirimi
 void callback(char* topic, byte* payload, unsigned int length);
 
@@ -78,11 +80,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println(msg);
 
   if (msg == "ON") {
+    ledState = true;
     digitalWrite(LED_PIN, HIGH);
     Serial.println("💡 LED AÇILDI");
   }
 
-  if (msg == "OFF") {
+  else if (msg == "OFF") {
+    ledState = false;
     digitalWrite(LED_PIN, LOW);
     Serial.println("💡 LED KAPATILDI");
   }
@@ -155,12 +159,7 @@ void loop() {
   // Işık
   int lightValue = analogRead(LIGHT_PIN);
   bool lightDetected = (lightValue < 2000);
-  // Hareket yok + ışık var => LED yak
-  if (lightDetected && !motionDetected) {
-    digitalWrite(LED_PIN, HIGH);
-  } else {
-    digitalWrite(LED_PIN, LOW);
-  }
+  digitalWrite(LED_PIN, ledState ? HIGH : LOW);
 
   // Alev
   int flameValue = analogRead(FLAME_A0);
