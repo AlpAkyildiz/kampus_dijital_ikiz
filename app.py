@@ -94,6 +94,9 @@ def check_and_notify(sensor):
     global last_motion_time
     global light_alert_sent
 
+    print("🔥 check_and_notify çalıştı")
+    print("📊 Sensor:", sensor)
+
     gas = sensor.get("gas", 0)
     flame = sensor.get("flame_detected", False)
     motion = sensor.get("motion_detected", False)
@@ -111,6 +114,8 @@ def check_and_notify(sensor):
     # 🚶 HAREKET
     if motion:
         last_motion_time = datetime.now()
+        print("🚶 Hareket algılandı")
+    
 
     # 🔥 ALEV
     if flame:

@@ -155,6 +155,12 @@ void loop() {
   // Işık
   int lightValue = analogRead(LIGHT_PIN);
   bool lightDetected = (lightValue < 2000);
+  // Hareket yok + ışık var => LED yak
+  if (lightDetected && !motionDetected) {
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, LOW);
+  }
 
   // Alev
   int flameValue = analogRead(FLAME_A0);
