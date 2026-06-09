@@ -5,6 +5,17 @@ import os
 from dotenv import load_dotenv
 import json
 
+from datetime import datetime, timedelta
+
+last_motion_time = datetime.now()
+
+light_alert_sent = False
+
+LIGHT_THRESHOLD = 500
+
+
+
+
 # 🔥 Firebase Admin
 import firebase_admin
 from firebase_admin import credentials, messaging
@@ -71,8 +82,14 @@ def save_token():
 
 # 🧠 AKILLI KONTROL
 def check_and_notify(sensor):
+    global last_motion_time
+    global light_alert_sent
+
     gas = sensor.get("gas", 0)
     flame = sensor.get("flame_detected", False)
+    motion = sensor.get("motion_detected", False)
+    light_value = sensor.get("light", 0)  # eğer sayı olarak geliyorsa
+    light_detected = sensor.get("light_detected", False)
 
     # 🚨 GAZ
     if gas > 2000:
@@ -82,6 +99,10 @@ def check_and_notify(sensor):
     else:
         last_state["gas_alert"] = False
 
+    # 🚶 HAREKET
+    if motion:
+        last_motion_time = datetime.now()
+
     # 🔥 ALEV
     if flame:
         if not last_state["flame_alert"]:
@@ -89,6 +110,33 @@ def check_and_notify(sensor):
             last_state["flame_alert"] = True
     else:
         last_state["flame_alert"] = False
+
+    # 💡 IŞIK KONTROLÜ
+
+    inactive = (
+        datetime.now() - last_motion_time
+    ) > timedelta(minutes=1)  # test için
+
+    light_on = (
+        light_detected or
+        light_value > LIGHT_THRESHOLD
+    )
+
+    if inactive and light_on:
+
+        if not light_alert_sent:
+
+            send_push(
+                "💡 Işıklar Açık Kalmış",
+                "LAB 1 sınıfında uzun süredir hareket yok ancak ışıklar açık görünüyor."
+            )
+
+            print("💡 LAB 1 ışık uyarısı gönderildi")
+
+            light_alert_sent = True
+
+    else:
+        light_alert_sent = False
 
 # 🌐 SAYFALAR
 @app.route("/")
