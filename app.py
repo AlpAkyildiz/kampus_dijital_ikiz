@@ -9,9 +9,9 @@ from datetime import datetime, timedelta
 
 print("🚀 APP.PY BAŞLADI")
 
+last_motion_time = datetime.now()
 
-
-
+light_alert_sent = False
 
 LIGHT_THRESHOLD = 500
 
@@ -43,14 +43,54 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 
 
-
+# 🧠 state
+last_state = {
+    "gas_alert": False,
+    "flame_alert": False
+}
 
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}"
 }
 
+# 📲 PUSH
+def send_push(title, body):
 
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/fcm_tokens?select=token",
+            headers=headers
+        )
+
+        tokens = r.json()
+
+        print("🚀 PUSH DENENIYOR")
+        print("📱 TOKEN SAYISI:", len(tokens))
+
+        for row in tokens:
+
+            token = row["token"]
+
+            try:
+                message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=title,
+                        body=body,
+                    ),
+                    token=token,
+                )
+
+                response = messaging.send(message)
+
+                print("✅ Push gönderildi")
+                print("Firebase Response:", response)
+
+            except Exception as e:
+                print("❌ Push hatası:", e)
+
+    except Exception as e:
+        print("❌ Token çekme hatası:", e)
 
 # 📲 TOKEN KAYDET
 @app.route("/api/token", methods=["POST"])
@@ -75,10 +115,88 @@ def save_token():
 
 
 
+def save_event(event_type, message, value=None):
+    requests.post(
+        f"{SUPABASE_URL}/rest/v1/notification_logs",
+        headers={
+            **headers,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+        },
+        json={
+            "type": event_type,
+            "message": message,
+            "sensor_value": value
+        }
+    )
 
 
 
+# 🧠 AKILLI KONTROL
+def check_and_notify(sensor):
+    global last_motion_time
+    global light_alert_sent
 
+    print("🔥 check_and_notify çalıştı")
+    print("📊 Sensor:", sensor)
+
+    gas = sensor.get("gas", 0)
+    flame = sensor.get("flame_detected", False)
+    motion = sensor.get("motion_detected", False)
+    light_value = sensor.get("light_value", 0)  # eğer sayı olarak geliyorsa
+    light_detected = sensor.get("light_detected", False)
+
+    # 🚨 GAZ
+    if gas > 2000:
+        if not last_state["gas_alert"]:
+            send_push("🚨 Gaz Tehlikesi!", f"Değer: {gas}")
+            save_event("gas", "Gaz seviyesi kritik", gas)
+            last_state["gas_alert"] = True
+    else:
+        last_state["gas_alert"] = False
+
+    # 🚶 HAREKET
+    if motion:
+        last_motion_time = datetime.now()
+        print("🚶 Hareket algılandı")
+    
+
+    # 🔥 ALEV
+    if flame:
+        if not last_state["flame_alert"]:
+            send_push("🔥 Alev Algılandı!", "Acil kontrol gerekli!")
+            save_event("flame", "Alev algılandı")
+            last_state["flame_alert"] = True
+    else:
+        last_state["flame_alert"] = False
+
+    # 💡 IŞIK KONTROLÜ
+
+    inactive = (
+        datetime.now() - last_motion_time
+    ) > timedelta(minutes=1)  # test için
+
+    light_on = (
+        light_detected or
+        light_value > LIGHT_THRESHOLD
+    )
+
+    if inactive and light_on:
+
+        if not light_alert_sent:
+
+            send_push(
+                "💡 Işıklar Açık Kalmış",
+                "LAB 1 sınıfında uzun süredir hareket yok ancak ışıklar açık görünüyor."
+            )
+            save_event("light", "Işık açık kaldı")
+
+            print("💡 LAB 1 ışık uyarısı gönderildi")
+
+            light_alert_sent = True
+
+    else:
+        light_alert_sent = False
 
 # 🌐 SAYFALAR
 @app.route("/")
@@ -106,7 +224,8 @@ def live():
 
     sensor = data[0]
 
-    
+    # 🔥 AKILLI BİLDİRİM
+    check_and_notify(sensor)
 
     return jsonify(sensor)
 
