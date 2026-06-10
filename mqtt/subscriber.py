@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import paho.mqtt.client as mqtt
 import os
 from dotenv import load_dotenv
+from notifications import check_and_notify
 
 # 🔥 .env yükle
 load_dotenv()
