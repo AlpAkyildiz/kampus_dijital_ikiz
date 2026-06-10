@@ -41,8 +41,7 @@ if not firebase_admin._apps:
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# 📱 token list (geçici)
-tokens = set()
+
 
 # 🧠 state
 last_state = {
@@ -58,39 +57,59 @@ headers = {
 # 📲 PUSH
 def send_push(title, body):
 
-    print("🚀 PUSH DENENIYOR")
-    print("📱 TOKEN SAYISI:", len(tokens))
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/fcm_tokens?select=token",
+            headers=headers
+        )
 
-    for token in tokens:
-        try:
-            message = messaging.Message(
-                notification=messaging.Notification(
-                    title=title,
-                    body=body,
-                ),
-                token=token,
-            )
+        tokens = r.json()
 
-            response = messaging.send(message)
+        print("🚀 PUSH DENENIYOR")
+        print("📱 TOKEN SAYISI:", len(tokens))
 
-            print("✅ Push gönderildi")
-            print("Firebase Response:", response)
+        for row in tokens:
 
-        except Exception as e:
-            print("❌ Push hatası:", e)
+            token = row["token"]
+
+            try:
+                message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=title,
+                        body=body,
+                    ),
+                    token=token,
+                )
+
+                response = messaging.send(message)
+
+                print("✅ Push gönderildi")
+                print("Firebase Response:", response)
+
+            except Exception as e:
+                print("❌ Push hatası:", e)
+
+    except Exception as e:
+        print("❌ Token çekme hatası:", e)
 
 # 📲 TOKEN KAYDET
 @app.route("/api/token", methods=["POST"])
 def save_token():
-
     data = request.json
     token = data.get("token")
 
     if token:
-        tokens.add(token)
-
-        print("📱 Token kaydedildi")
-        print("📱 Toplam token:", len(tokens))
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/fcm_tokens",
+            headers={
+                **headers,
+                "Content-Type": "application/json",
+                "Prefer": "resolution=merge-duplicates"
+            },
+            json={
+                "token": token
+            }
+        )
 
     return {"status": "ok"}
 
