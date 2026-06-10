@@ -91,6 +91,22 @@ h1{
 <div class="card">
 <h3>🚨 Alarm</h3>
 <div class="value" id="alarm">Normal</div>
+
+<div class="card">
+<h3>🚶 Hareket</h3>
+<div class="value" id="motion">YOK</div>
+</div>
+
+<div class="card">
+<h3>💡 Işık</h3>
+<div class="value" id="light">Kapalı</div>
+</div>
+
+<div class="card">
+<h3>🔥 Alev</h3>
+<div class="value" id="flame">Yok</div>
+</div>
+
 </div>
 
 </div>
@@ -98,6 +114,11 @@ h1{
 <div class="chart-box">
 <h3>Canlı Grafik</h3>
 <canvas id="chart"></canvas>
+</div>
+
+<div class="chart-box">
+    <h3>📋 Sistem Olayları</h3>
+    <div id="events"></div>
 </div>
 
 <div class="footer">
@@ -115,7 +136,8 @@ function initChart(){
       datasets:[
         { label:'Sıcaklık', data:[], borderColor:'#ef4444', tension:0.3 },
         { label:'Nem', data:[], borderColor:'#3b82f6', tension:0.3 },
-        { label:'Akım', data:[], borderColor:'#22c55e', tension:0.3 }
+        { label:'Akım', data:[], borderColor:'#22c55e', tension:0.3 },
+        {label:'Gaz', data:[], borderColor:'#f97316', tension:0.3 }
       ]
     },
     options:{
@@ -139,6 +161,14 @@ async function loadLive(){
   document.getElementById("hum").innerText = data.humidity + " %";
   document.getElementById("gas").innerText = data.gas;
   document.getElementById("current").innerText = Number(data.current || 0).toFixed(2) + " A";
+  document.getElementById("motion").innerText =
+    data.motion_detected ? "VAR" : "YOK";
+
+  document.getElementById("light").innerText =
+    data.light_detected ? "AÇIK" : "KAPALI";
+
+  document.getElementById("flame").innerText =
+    data.flame_detected ? "VAR" : "YOK";
 
   let alarm = document.getElementById("alarm");
 
@@ -154,6 +184,29 @@ async function loadLive(){
     new Date(data.created_at).toLocaleString("tr-TR");
 }
 
+async function loadEvents(){
+    let res = await fetch('/api/events?t=' + Date.now());
+    let rows = await res.json();
+
+    let html = "";
+
+    rows.slice(0,10).forEach(event => {
+        html += `
+        <div style="
+            padding:10px;
+            margin-bottom:8px;
+            background:#334155;
+            border-radius:8px;
+        ">
+            <b>${event.message}</b><br>
+            <small>${event.created_at}</small>
+        </div>`;
+    });
+
+    document.getElementById("events").innerHTML = html;
+}
+
+
 async function loadChart(){
   let res = await fetch('/api/history?t=' + Date.now());
   let rows = await res.json();
@@ -167,6 +220,8 @@ async function loadChart(){
   chart.data.datasets[0].data = rows.map(x => Number(x.temperature || 0));
   chart.data.datasets[1].data = rows.map(x => Number(x.humidity || 0));
   chart.data.datasets[2].data = rows.map(x => Number(x.current || 0));
+  chart.data.datasets[3].data =
+    rows.map(x => Number(x.gas || 0));
 
   chart.update();
 }
@@ -174,6 +229,8 @@ async function loadChart(){
 async function refresh(){
   await loadLive();
   await loadChart();
+  await loadEvents();
+
 }
 
 initChart();
